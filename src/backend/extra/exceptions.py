@@ -19,14 +19,14 @@ class MemoryOddAddressing(MemoryException):
 
 
 class RegisterException(EmulatorException):
-    def __init__(self, what):
+    def __init__(self, what: str):
         super(RegisterException, self).__init__()
         self.what = what
 
 
 class RegisterWrongNumberBits(RegisterException):
     def __init__(self, bits: int):
-        super(WrongNumberBits, self).__init__("Number of bits isn't equal to {}".format(bits))
+        super(RegisterWrongNumberBits, self).__init__("Number of bits isn't equal to {}".format(bits))
 
 
 class RegisterOutOfBound(RegisterException):
@@ -38,3 +38,9 @@ class RegisterOutOfBound(RegisterException):
 class RegisterOddValue(RegisterException):
     def __init__(self):
         super(RegisterOddValue, self).__init__("Tried to set odd value to SP or PC")
+
+
+class ProgramStatusException(EmulatorException):
+    def __init__(self, what: str):
+        super(ProgramStatusException, self).__init__()
+        self.what = what
