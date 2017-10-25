@@ -33,3 +33,8 @@ class RegisterOutOfBound(RegisterException):
     def __init__(self, value: int, bytes: int, signed: bool):
         tmp = "Signed" if signed else "Unsigned"
         super(RegisterOutOfBound, self).__init__("{} value {} is not placed in {} bytes".format(tmp, value, bytes))
+
+
+class RegisterOddValue(RegisterException):
+    def __init__(self):
+        super(RegisterOddValue, self).__init__("Tried to set odd value to SP or PC")

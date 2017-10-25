@@ -1,25 +1,13 @@
-from src.backend.extra.exceptions import RegisterOutOfBound, RegisterWrongNumberBits, RegisterException
+from src.backend.extra.exceptions import \
+    RegisterOutOfBound, \
+    RegisterWrongNumberBits, \
+    RegisterException, \
+    RegisterOddValue
 
 from bitarray import bitarray
 
-a = bitarray("1100000011111110", endian="big")
-print(int.from_bytes(a.tobytes(), byteorder='big', signed=True))
-
-#exit(0)
 
 class Register:
-    #MIN_SIGNED_LOW = -128
-    #MAX_SIGNED_LOW = 127
-
-    #MIN_UNSIGNED_LOW = 0
-    #MAX_UNSIGNED_LOW = 255
-
-    #MIN_SIGNED_FULL = -32768
-    #MAX_SIGNED_FULL = 32767
-
-    #MIN_UNSIGNED_FULL = 0
-    #MAX_UNSIGNED_FULL = 65536
-
     def __init__(self):
         self._data = bitarray((False for _ in range(16)), endian="big")
         self._integer_representations = {}
@@ -43,10 +31,10 @@ class Register:
         if size not in ("byte", "word"):
             raise RegisterException(what="size is not in ('byte', 'word')")
 
-        min = Register.BOUND_PROPERTIES[(size, signed)][0]
-        max = Register.BOUND_PROPERTIES[(size, signed)][1]
+        min_value = Register.BOUND_PROPERTIES[(size, signed)][0]
+        max_value = Register.BOUND_PROPERTIES[(size, signed)][1]
         num_bytes = Register.INTEGER_REPRESENTATION_PROPERTIES[size]["bytes"]
-        if value < min or value > max:
+        if value < min_value or value > max_value:
             raise RegisterOutOfBound(value=value, bytes=num_bytes, signed=signed)
 
         data = bitarray(endian='big')
@@ -83,9 +71,51 @@ class Register:
                         ("word", True): (-32768, 32767),
                         ("word", False): (0, 65536)}
 
+    def inc(self, value):
+        self.set(size="word", signed=False, value=self.get(size="word", signed=False) + value)
+
+    def dec(self, value):
+        self.set(size="word", signed=False, value=self.get(size="word", signed=False) - value)
+
+
+class GeneralPurposeRegister(Register):
+    def __init__(self):
+        super(GeneralPurposeRegister, self).__init__()
+
+
+class OnlyOddValueRegister(Register):
+    def set_byte(self, value: bitarray):
+        if value.length() > 0 and value[-1] is True:
+            raise RegisterOddValue()
+        super().set_byte(value)
+
+    def set_word(self, value: bitarray):
+        if value.length() > 0 and value[-1] is True:
+            raise RegisterOddValue()
+        return super().set_word(value)
+
+    def set(self, size: str, signed: bool, value: int):
+        if value % 2 == 1:
+            raise RegisterOddValue()
+        return super().set(size, signed, value)
+
+    def inc(self, value):
+        self.set(size="word", signed=False, value=self.get(size="word", signed=False) + 2)
+
+    def dec(self, value):
+        self.set(size="word", signed=False, value=self.get(size="word", signed=False) - 2)
+
+
+class StackPointer(OnlyOddValueRegister):
+    pass
+
+
+class ProgramCounter(OnlyOddValueRegister):
+    pass
+
 
 if __name__ == "__main__":
-    r = Register()
+    r = GeneralPurposeRegister()
     r.set_word(bitarray("1000000110000010"))
 
     print(r.word())
