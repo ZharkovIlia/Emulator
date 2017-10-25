@@ -7,7 +7,7 @@ from src.backend.extra.exceptions import \
 from bitarray import bitarray
 
 
-class GeneralPurposeRegister:
+class Register:
     def __init__(self):
         self._data = bitarray((False for _ in range(16)), endian="big")
         self._integer_representations = {}
@@ -106,7 +106,7 @@ class ProgramCounter(OnlyOddValueRegister):
 
 
 if __name__ == "__main__":
-    r = GeneralPurposeRegister()
+    r = Register()
     r.set_word(bitarray("1000000110000010"))
 
     print(r.word())

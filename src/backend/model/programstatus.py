@@ -20,6 +20,10 @@ class ProgramStatus:
 
         self._bits[bit] = value
 
+    def clear(self):
+        for key in self._bits.keys():
+            self._bits[key] = False
+
     @property
     def bits(self):
         return self._bits

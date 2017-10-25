@@ -1,6 +1,6 @@
 from src.backend.extra.exceptions import EmulatorBreakpointNotInROM, EmulatorOddBreakpoint
 from src.backend.model.memory import Memory
-from src.backend.model.register import GeneralPurposeRegister, StackPointer, ProgramCounter
+from src.backend.model.registers import Register, StackPointer, ProgramCounter
 from src.backend.model.programstatus import ProgramStatus
 
 from bitarray import bitarray
@@ -9,7 +9,7 @@ from bitarray import bitarray
 class Emulator:
     def __init__(self):
         self._memory = Memory()
-        self._registers = list(GeneralPurposeRegister() for _ in range(6))
+        self._registers = list(Register() for _ in range(6))
         self._registers.append(StackPointer())
         self._registers.append(ProgramCounter())
 

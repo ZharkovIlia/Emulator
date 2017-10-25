@@ -1,9 +1,22 @@
+from bitarray import bitarray
+
+
 class EmulatorException(Exception):
     def __init__(self, what):
         self.what = what
 
     def __str__(self):
         return self.what
+
+
+class EmulatorOddBreakpoint(EmulatorException):
+    def __init__(self):
+        super(EmulatorOddBreakpoint, self).__init__("Tried to toggle breakpoint on odd address")
+
+
+class EmulatorBreakpointNotInROM(EmulatorException):
+    def __init__(self):
+        super(EmulatorBreakpointNotInROM, self).__init__("Address of breakpoint is not in ROM")
 
 
 class MemoryException(EmulatorException):
@@ -47,11 +60,31 @@ class ProgramStatusException(EmulatorException):
         super(ProgramStatusException, self).__init__(what)
 
 
-class EmulatorOddBreakpoint(EmulatorException):
-    def __init__(self):
-        super(EmulatorOddBreakpoint, self).__init__("Tried to toggle breakpoint on odd address")
+class CommandException(EmulatorException):
+    def __init__(self, what: str):
+        super(CommandException, self).__init__(what=what)
 
 
-class EmulatorBreakpointNotInROM(EmulatorException):
+class CommandWrongNumberBits(CommandException):
     def __init__(self):
-        super(EmulatorBreakpointNotInROM, self).__init__("Address of breakpoint is not in ROM")
+        super(CommandWrongNumberBits, self).__init__(what="Number of bits doesn't equal to 16")
+
+
+class UnknownCommand(CommandException):
+    def __init__(self, code: bitarray):
+        super(UnknownCommand, self).__init__(what="Unrecognized command with code {}".format(code.to01()))
+
+
+class OperandWrongNumberOfBits(CommandException):
+    def __init__(self):
+        super(OperandWrongNumberOfBits, self).__init__(what="Number of bits doesn't equal to 3")
+
+
+class OperandWrongPCMode(CommandException):
+    def __init__(self):
+        super(OperandWrongPCMode, self).__init__(what="Mode of PC operand is not in (2, 3, 6, 7)")
+
+
+class OperandBothRequireNextInstruction(CommandException):
+    def __init__(self):
+        super(OperandBothRequireNextInstruction, self).__init__(what="Only one operand can require next instruction")
