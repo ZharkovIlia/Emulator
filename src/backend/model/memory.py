@@ -1,0 +1,65 @@
+from src.backend.extra.exceptions import MemoryException, MemoryIndexOutOfBound, MemoryOddAddressing
+from bitarray import bitarray
+
+
+class Memory:
+    SIZE = 64 * 1024
+    RAM_START = 0
+    VRAM_START = 16 * 1024
+    ROM_START = 32 * 1024
+    IO_START = 48 * 1024
+
+    def __init__(self):
+        self._data = bytearray(0 for _ in range(0, Memory.SIZE))
+
+    def load(self, address: int, size: str) -> bitarray:
+        Memory._check_arguments(address, size)
+        mem = bitarray(endian='big')
+        mem.frombytes(bytes(self._data[address: address+1]))
+        if size == 'word':
+            tmp = bitarray(endian='big')
+            tmp.frombytes(bytes(self._data[address+1: address+2]))
+            tmp.extend(mem)
+            mem = tmp
+        return mem
+
+    def store(self, address: int, size: str, mem: bitarray) -> None:
+        Memory._check_arguments(address, size)
+        num_bytes = 1 if size == 'byte' else 2
+        if mem.length() != num_bytes * 8:
+            raise MemoryException(what="num of stored bits doesn't correspond to predefined size")
+
+        self._data[address: address+1] = mem[mem.length()-8: mem.length()].tobytes()
+        if num_bytes == 2:
+            self._data[address+1: address+2] = mem[0: 8].tobytes()
+
+    @staticmethod
+    def _check_arguments(address: int, size: str):
+        if size not in ("byte", "word"):
+            raise MemoryException(what="size is not in ('byte', 'word')")
+
+        num_bytes = 1 if size == 'byte' else 2
+        if num_bytes == 2 and address % 2 == 1:
+            raise MemoryOddAddressing()
+
+        if address < 0:
+            raise MemoryIndexOutOfBound()
+
+        if address > Memory.SIZE - num_bytes:
+            raise MemoryIndexOutOfBound()
+
+    @property
+    def data(self):
+        return self._data
+
+
+if __name__ == '__main__':
+    mem = Memory()
+    mem.store(address=234, size='word', mem=bitarray('1001000010011000', endian='big'))
+    print(mem.load(address=234, size='byte'))
+    print(mem.load(address=234, size='word'))
+    print(mem.load(address=235, size='byte'))
+    mem.store(address=235, size='byte', mem=bitarray('11111111', endian='big'))
+    print(mem.load(address=234, size='byte'))
+    print(mem.load(address=234, size='word'))
+    print(mem.load(address=235, size='byte'))
