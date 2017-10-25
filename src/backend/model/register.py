@@ -7,14 +7,10 @@ from src.backend.extra.exceptions import \
 from bitarray import bitarray
 
 
-class Register:
+class GeneralPurposeRegister:
     def __init__(self):
         self._data = bitarray((False for _ in range(16)), endian="big")
         self._integer_representations = {}
-        self._low_signed = None
-        self._low_unsigned = None
-        self._full_signed = None
-        self._full_unsigned = None
 
     def get(self, size: str, signed: bool):
         if size not in ("byte", "word"):
@@ -76,11 +72,6 @@ class Register:
 
     def dec(self, value):
         self.set(size="word", signed=False, value=self.get(size="word", signed=False) - value)
-
-
-class GeneralPurposeRegister(Register):
-    def __init__(self):
-        super(GeneralPurposeRegister, self).__init__()
 
 
 class OnlyOddValueRegister(Register):

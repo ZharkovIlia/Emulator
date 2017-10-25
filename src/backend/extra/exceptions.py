@@ -1,11 +1,14 @@
 class EmulatorException(Exception):
-    pass
+    def __init__(self, what):
+        self.what = what
+
+    def __str__(self):
+        return self.what
 
 
 class MemoryException(EmulatorException):
     def __init__(self, what: str):
-        super(MemoryException, self).__init__()
-        self.what = what
+        super(MemoryException, self).__init__(what)
 
 
 class MemoryIndexOutOfBound(MemoryException):
@@ -20,8 +23,7 @@ class MemoryOddAddressing(MemoryException):
 
 class RegisterException(EmulatorException):
     def __init__(self, what: str):
-        super(RegisterException, self).__init__()
-        self.what = what
+        super(RegisterException, self).__init__(what)
 
 
 class RegisterWrongNumberBits(RegisterException):
@@ -42,5 +44,14 @@ class RegisterOddValue(RegisterException):
 
 class ProgramStatusException(EmulatorException):
     def __init__(self, what: str):
-        super(ProgramStatusException, self).__init__()
-        self.what = what
+        super(ProgramStatusException, self).__init__(what)
+
+
+class EmulatorOddBreakpoint(EmulatorException):
+    def __init__(self):
+        super(EmulatorOddBreakpoint, self).__init__("Tried to toggle breakpoint on odd address")
+
+
+class EmulatorBreakpointNotInROM(EmulatorException):
+    def __init__(self):
+        super(EmulatorBreakpointNotInROM, self).__init__("Address of breakpoint is not in ROM")

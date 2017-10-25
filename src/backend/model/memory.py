@@ -1,13 +1,27 @@
 from src.backend.extra.exceptions import MemoryException, MemoryIndexOutOfBound, MemoryOddAddressing
 from bitarray import bitarray
-
+import enum
 
 class Memory:
     SIZE = 64 * 1024
-    RAM_START = 0
-    VRAM_START = 16 * 1024
-    ROM_START = 32 * 1024
-    IO_START = 48 * 1024
+
+    class Part(enum.Enum):
+        RAM = (0, 16*1024)
+        VRAM = (16*1024, 32*1024)
+        ROM = (32*1024, 48*1024)
+        IO = (48*1024, 64*1024)
+
+        def __init__(self, start, end):
+            self._start = start
+            self._end = end
+
+        @property
+        def start(self):
+            return self._start
+
+        @property
+        def end(self):
+            return self._end
 
     def __init__(self):
         self._data = bytearray(0 for _ in range(0, Memory.SIZE))
@@ -52,6 +66,17 @@ class Memory:
     def data(self):
         return self._data
 
+    @staticmethod
+    def get_type_by_address(address):
+        if address < 0 or address >= Memory.SIZE:
+            raise MemoryIndexOutOfBound()
+
+        for part in list(Memory.Part):
+            if part.start <= address < part.end:
+                return part
+
+        assert False
+
 
 if __name__ == '__main__':
     mem = Memory()
@@ -63,3 +88,5 @@ if __name__ == '__main__':
     print(mem.load(address=234, size='byte'))
     print(mem.load(address=234, size='word'))
     print(mem.load(address=235, size='byte'))
+
+    print(Memory.get_type_by_address(23443).name)
