@@ -57,6 +57,10 @@ class Operand:
     def add_next_instruction_to_inner_register(self):
         self._inner_register.inc(value=self._next_instruction)
 
+    def copy_inner_register_to_inner_address(self):
+        self._inner_address = Register()
+        self._inner_address.set_word(self._inner_register.word())
+
     @property
     def inner_register(self):
         return self._inner_register
@@ -134,12 +138,12 @@ class Operand:
                                "callback": self.add_next_instruction_to_inner_register})
 
         if self._mode in (1, 2, 4, 6):
-            self._inner_address = Register()
-            self._inner_address.set_word(self._inner_register.word())
+            operations.append({"operation": Operation.EXECUTE,
+                               "callback": self.copy_inner_register_to_inner_address})
 
         fetch_size = size if self._mode in (1, 2, 4, 6) else "word"
         operations.append({"operation": Operation.FETCH_ADDRESS,
-                           "address": self._inner_register.get(size="word", signed=False),
+                           "address": lambda: self._inner_register.get(size="word", signed=False),
                            "size": fetch_size,
                            "callback": self._inner_register.set_byte
                            if fetch_size == "byte" else self._inner_register.set_word})
@@ -147,17 +151,17 @@ class Operand:
         if self._mode in (1, 2, 4, 6):
             return
 
-        self._inner_address = Register()
-        self._inner_address.set_word(self._inner_register.word())
+        operations.append({"operation": Operation.EXECUTE,
+                           "callback": self.copy_inner_register_to_inner_address})
         operations.append({"operation": Operation.FETCH_ADDRESS,
-                           "address": self._inner_register.get(size="word", signed=False),
+                           "address": lambda: self._inner_register.get(size="word", signed=False),
                            "size": size,
                            "callback": self._inner_register.set_byte
                            if size == "byte" else self._inner_register.set_word})
 
     def add_store(self, operations: list, size: str):
-        value = self._inner_register.byte() if size == "byte" else self._inner_register.word()
-        if self._inner_address is None:
+        value = lambda: (self._inner_register.byte() if size == "byte" else self._inner_register.word())
+        if self._mode == 0:
             operations.append({"operation": Operation.STORE_REGISTER,
                                "register": self._reg,
                                "size": size,
@@ -165,7 +169,7 @@ class Operand:
 
         else:
             operations.append({"operation": Operation.STORE_ADDRESS,
-                               "address": self._inner_address.get(size="word", signed=False),
+                               "address": lambda: self._inner_address.get(size="word", signed=False),
                                "size": size,
                                "value": value})
 

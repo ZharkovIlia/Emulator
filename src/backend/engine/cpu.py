@@ -20,7 +20,7 @@ class CPU:
         for op in command:
             optype = op["operation"]
             if optype is Operation.DECODE:
-                pass
+                continue
 
             elif optype is Operation.FETCH_NEXT_INSTRUCTION:
                 next_instr = self.fetch_next_instruction()
@@ -31,7 +31,7 @@ class CPU:
                 op["callback"](reg.byte() if op["size"] == "byte" else reg.word())
 
             elif optype is Operation.FETCH_ADDRESS:
-                op["callback"](self._memory.load(address=op["address"], size=op["size"]))
+                op["callback"](self._memory.load(address=op["address"](), size=op["size"]))
 
             elif optype is Operation.EXECUTE:
                 op["callback"]()
@@ -44,10 +44,13 @@ class CPU:
 
             elif optype is Operation.STORE_REGISTER:
                 reg = self._registers[op["register"]]
-                reg.set_byte(value=op["value"]) if op["size"] == "byte" else reg.set_word(value=op["value"])
+                reg.set_byte(value=op["value"]()) if op["size"] == "byte" else reg.set_word(value=op["value"]())
 
             elif optype is Operation.STORE_ADDRESS:
-                self._memory.store(address=op["address"], size=op["size"], mem=op["value"])
+                self._memory.store(address=op["address"](), size=op["size"], mem=op["value"]())
+
+            elif optype is Operation.DONE:
+                break
 
     def fetch_next_instruction(self) -> bitarray:
         instr = self._memory.load(address=self._registers[CPU.ProgramCounter].get(size="word", signed=False),
