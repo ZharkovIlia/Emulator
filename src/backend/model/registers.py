@@ -12,13 +12,13 @@ class Register:
         self._data = bitarray((False for _ in range(16)), endian="big")
         self._integer_representations = {}
 
-    def get(self, size: str, signed: bool):
+    def get(self, size: str, signed: bool) -> int:
         if size not in ("byte", "word"):
             raise RegisterException(what="size is not in ('byte', 'word')")
 
         if (size, signed) not in self._integer_representations:
             self._integer_representations[(size, signed)] \
-                = int.from_bytes(Register.INTEGER_REPRESENTATION_PROPERTIES[size]["getter"](self).tobytes(),
+                = int.from_bytes(Register.INTEGER_REPRESENTATION_PROPERTIES[size]["getter"](self, shallow=True).tobytes(),
                                  byteorder='big', signed=signed)
 
         return self._integer_representations[(size, signed)]
@@ -35,26 +35,26 @@ class Register:
 
         data = bitarray(endian='big')
         data.frombytes(value.to_bytes(num_bytes, byteorder='big', signed=signed))
-        Register.INTEGER_REPRESENTATION_PROPERTIES[size]["setter"](self, data)
+        Register.INTEGER_REPRESENTATION_PROPERTIES[size]["setter"](self, data, shallow=True)
         self._integer_representations[(size, signed)] = value
 
-    def byte(self) -> bitarray:
-        return self._data[8: 16]
+    def byte(self, shallow=False) -> bitarray:
+        return self._data[8: 16] if shallow else self._data[8: 16].copy()
 
-    def set_byte(self, value: bitarray):
+    def set_byte(self, value: bitarray, shallow=False):
         self._reset_integer_representations()
         if value.length() != 8:
             raise RegisterWrongNumberBits(8)
-        self._data[8: 16] = value
+        self._data[8: 16] = value if shallow else value.copy()
 
-    def word(self) -> bitarray:
-        return self._data
+    def word(self, shallow=False) -> bitarray:
+        return self._data if shallow else self._data.copy()
 
-    def set_word(self, value: bitarray):
+    def set_word(self, value: bitarray, shallow=False):
         self._reset_integer_representations()
         if value.length() != 16:
             raise RegisterWrongNumberBits(16)
-        self._data = value
+        self._data = value if shallow else value.copy()
 
     def _reset_integer_representations(self):
         self._integer_representations.clear()
