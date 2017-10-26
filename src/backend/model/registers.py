@@ -67,10 +67,10 @@ class Register:
                         ("word", True): (-32768, 32767),
                         ("word", False): (0, 65536)}
 
-    def inc(self, value):
+    def inc(self, value: int=1):
         self.set(size="word", signed=False, value=self.get(size="word", signed=False) + value)
 
-    def dec(self, value):
+    def dec(self, value: int=1):
         self.set(size="word", signed=False, value=self.get(size="word", signed=False) - value)
 
 
@@ -90,10 +90,10 @@ class OnlyOddValueRegister(Register):
             raise RegisterOddValue()
         return super().set(size, signed, value)
 
-    def inc(self, value):
+    def inc(self, value: int=1):
         self.set(size="word", signed=False, value=self.get(size="word", signed=False) + 2)
 
-    def dec(self, value):
+    def dec(self, value: int=1):
         self.set(size="word", signed=False, value=self.get(size="word", signed=False) - 2)
 
 

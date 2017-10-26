@@ -104,9 +104,10 @@ class Operand:
 
     def add_fetch(self, operations: list, size: str):
         if self._mode // 2 == 2:
+            value = 1 if self._mode == 4 and size == "byte" else 2
             operations.append({"operation": Operation.DECREMENT_REGISTER,
                                "register": self._reg,
-                               "size": size if self._mode == 4 else "word"})
+                               "value": value})
 
         if self._mode // 2 == 3:
             operations.append({"operation": Operation.FETCH_NEXT_INSTRUCTION,
@@ -123,9 +124,10 @@ class Operand:
             return
 
         if self._mode // 2 == 1:
+            value = 1 if self._mode == 2 and size == "byte" else 2
             operations.append({"operation": Operation.INCREMENT_REGISTER,
                                "register": self._reg,
-                               "size": size if self._mode == 2 else "word"})
+                               "value": value})
 
         if self._mode // 2 == 3:
             operations.append({"operation": Operation.EXECUTE,
@@ -154,19 +156,18 @@ class Operand:
                            if size == "byte" else self._inner_register.set_word})
 
     def add_store(self, operations: list, size: str):
+        value = self._inner_register.byte() if size == "byte" else self._inner_register.word()
         if self._inner_address is None:
             operations.append({"operation": Operation.STORE_REGISTER,
                                "register": self._reg,
                                "size": size,
-                               "callback": self._inner_register.byte
-                               if size == "byte" else self._inner_register.word})
+                               "value": value})
 
         else:
             operations.append({"operation": Operation.STORE_ADDRESS,
                                "address": self._inner_address.get(size="word", signed=False),
                                "size": size,
-                               "callback": self._inner_register.byte
-                               if size == "byte" else self._inner_register.word})
+                               "value": value})
 
 
 class AbstractCommand:
@@ -209,10 +210,15 @@ class AbstractCommand:
     def type(self):
         return self._type
 
-    def next_operation(self):
+    def __iter__(self):
+        self._cur_operation = 0
+        return self
+
+    def __next__(self):
         if self._cur_operation < len(self._operations):
             self._cur_operation += 1
             return self._operations[self._cur_operation - 1]
+        raise StopIteration()
 
     def _add_decode(self):
         self._operations.append({"operation": Operation.DECODE,
