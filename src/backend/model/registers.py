@@ -75,15 +75,15 @@ class Register:
 
 
 class OnlyOddValueRegister(Register):
-    def set_byte(self, value: bitarray):
+    def set_byte(self, value: bitarray, shallow=False):
         if value.length() > 0 and value[-1] is True:
             raise RegisterOddValue()
-        super().set_byte(value)
+        super().set_byte(value, shallow=shallow)
 
-    def set_word(self, value: bitarray):
+    def set_word(self, value: bitarray, shallow=True):
         if value.length() > 0 and value[-1] is True:
             raise RegisterOddValue()
-        return super().set_word(value)
+        return super().set_word(value, shallow=shallow)
 
     def set(self, size: str, signed: bool, value: int):
         if value % 2 == 1:
@@ -103,56 +103,3 @@ class StackPointer(OnlyOddValueRegister):
 
 class ProgramCounter(OnlyOddValueRegister):
     pass
-
-
-if __name__ == "__main__":
-    r = Register()
-    r.set_word(bitarray("1000000110000010"))
-
-    print(r.word())
-    print(r.byte())
-
-    print(r.get(size="byte", signed=True))
-    print(r.get(size="byte", signed=False))
-    print(r.get(size="word", signed=True))
-    print(r.get(size="word", signed=False))
-
-    r.set(size="byte", signed=True, value=127)
-
-    print(r.word())
-    print(r.byte())
-
-    print(r.get(size="byte", signed=True))
-    print(r.get(size="byte", signed=False))
-    print(r.get(size="word", signed=True))
-    print(r.get(size="word", signed=False))
-
-    r.set(size="byte", signed=False, value=255)
-
-    print(r.word())
-    print(r.byte())
-
-    print(r.get(size="byte", signed=True))
-    print(r.get(size="byte", signed=False))
-    print(r.get(size="word", signed=True))
-    print(r.get(size="word", signed=False))
-
-    r.set(size="word", signed=True, value=-1)
-
-    print(r.word())
-    print(r.byte())
-
-    print(r.get(size="byte", signed=True))
-    print(r.get(size="byte", signed=False))
-    print(r.get(size="word", signed=True))
-    print(r.get(size="word", signed=False))
-
-    r.set(size="word", signed=False, value=1)
-
-    print(r.word())
-    print(r.byte())
-
-    print(r.get(size="byte", signed=True))
-    print(r.get(size="byte", signed=False))
-    print(r.get(size="word", signed=True))
-    print(r.get(size="word", signed=False))

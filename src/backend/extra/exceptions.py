@@ -83,8 +83,3 @@ class OperandWrongNumberOfBits(CommandException):
 class OperandWrongPCMode(CommandException):
     def __init__(self):
         super(OperandWrongPCMode, self).__init__(what="Mode of PC operand is not in (2, 3, 6, 7)")
-
-
-class OperandBothRequireNextInstruction(CommandException):
-    def __init__(self):
-        super(OperandBothRequireNextInstruction, self).__init__(what="Only one operand can require next instruction")

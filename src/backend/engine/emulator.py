@@ -43,13 +43,3 @@ class Emulator:
     def program_status(self):
         return self._program_status
 
-
-if __name__ == "__main__":
-    e = Emulator()
-    for elem in e.registers:
-        elem.set(size="word", signed=False, value=128)
-        print(elem.get(size="byte", signed=True))
-
-    a = bitarray("1001", endian='big')
-    a[2] = not a[2]
-    print(a)

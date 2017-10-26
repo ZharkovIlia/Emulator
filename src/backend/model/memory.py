@@ -76,17 +76,3 @@ class Memory:
                 return part
 
         assert False
-
-
-if __name__ == '__main__':
-    mem = Memory()
-    mem.store(address=234, size='word', mem=bitarray('1001000010011000', endian='big'))
-    print(mem.load(address=234, size='byte'))
-    print(mem.load(address=234, size='word'))
-    print(mem.load(address=235, size='byte'))
-    mem.store(address=235, size='byte', mem=bitarray('11111111', endian='big'))
-    print(mem.load(address=234, size='byte'))
-    print(mem.load(address=234, size='word'))
-    print(mem.load(address=235, size='byte'))
-
-    print(Memory.get_type_by_address(23443).name)

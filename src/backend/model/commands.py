@@ -5,8 +5,7 @@ from src.backend.extra.exceptions import\
     CommandWrongNumberBits,\
     UnknownCommand,\
     OperandWrongNumberOfBits,\
-    OperandWrongPCMode,\
-    OperandBothRequireNextInstruction
+    OperandWrongPCMode
 from bitarray import bitarray
 
 from src.backend.model.programstatus import ProgramStatus
@@ -160,7 +159,9 @@ class Operand:
                            if size == "byte" else self._inner_register.set_word})
 
     def add_store(self, operations: list, size: str):
-        value = lambda: (self._inner_register.byte() if size == "byte" else self._inner_register.word())
+        def value():
+            return self._inner_register.byte() if size == "byte" else self._inner_register.word()
+
         if self._mode == 0:
             operations.append({"operation": Operation.STORE_REGISTER,
                                "register": self._reg,
@@ -242,8 +243,6 @@ class DoubleOperandCommand(AbstractCommand):
         super(DoubleOperandCommand, self).__init__(program_status)
         self._src_operand = src_operand
         self._dest_operand = dest_operand
-        if self._src_operand.require_next_instruction and self._dest_operand.require_next_instruction:
-            raise OperandBothRequireNextInstruction()
 
     def _add_fetch_operands(self, size: str):
         self._src_operand.add_fetch(operations=self._operations, size=size)
@@ -320,63 +319,3 @@ class Commands:
                 return command_instance.klass(matcher, program_status)
 
         raise UnknownCommand(code=code)
-
-
-if __name__ == "__main__":
-    ps = ProgramStatus()
-    ps.set('N', True)
-    ps.set('C', True)
-    com = Commands.get_command_by_code(bitarray("1000101000000000", endian='big'), program_status=ps)
-    print(com.dest_operand.mode)
-    print(com.dest_operand.reg)
-    for i in com._operations:
-        print(i["operation"].name)
-
-    print('----------------------')
-    com = Commands.get_command_by_code(bitarray("1000101000001000", endian='big'), program_status=ps)
-    print(com.dest_operand.mode)
-    print(com.dest_operand.reg)
-    for i in com._operations:
-        print(i["operation"].name)
-
-    print('----------------------')
-    com = Commands.get_command_by_code(bitarray("1000101000010000", endian='big'), program_status=ps)
-    print(com.dest_operand.mode)
-    print(com.dest_operand.reg)
-    for i in com._operations:
-        print(i["operation"].name)
-
-    print('----------------------')
-    com = Commands.get_command_by_code(bitarray("1000101000011000", endian='big'), program_status=ps)
-    print(com.dest_operand.mode)
-    print(com.dest_operand.reg)
-    for i in com._operations:
-        print(i["operation"].name)
-
-    print('----------------------')
-    com = Commands.get_command_by_code(bitarray("1000101000100000", endian='big'), program_status=ps)
-    print(com.dest_operand.mode)
-    print(com.dest_operand.reg)
-    for i in com._operations:
-        print(i["operation"].name)
-
-    print('----------------------')
-    com = Commands.get_command_by_code(bitarray("1000101000101000", endian='big'), program_status=ps)
-    print(com.dest_operand.mode)
-    print(com.dest_operand.reg)
-    for i in com._operations:
-        print(i["operation"].name)
-
-    print('----------------------')
-    com = Commands.get_command_by_code(bitarray("1000101000110000", endian='big'), program_status=ps)
-    print(com.dest_operand.mode)
-    print(com.dest_operand.reg)
-    for i in com._operations:
-        print(i["operation"].name)
-
-    print('----------------------')
-    com = Commands.get_command_by_code(bitarray("1000101000111000", endian='big'), program_status=ps)
-    print(com.dest_operand.mode)
-    print(com.dest_operand.reg)
-    for i in com._operations:
-        print(i["operation"].name)
