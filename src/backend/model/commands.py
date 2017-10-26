@@ -44,7 +44,6 @@ class Operand:
         if self._reg == 7 and self._mode not in (2, 3, 6, 7):
             raise OperandWrongPCMode()
 
-        self._require_next_instruction = (self._reg == 7 or self._mode // 2 == 3)
         self._next_instruction = None
         self._inner_register = Register()
         self._inner_address = None
@@ -72,7 +71,7 @@ class Operand:
 
     @property
     def require_next_instruction(self) -> bool:
-        return self._require_next_instruction
+        return self._reg == 7 or self._mode // 2 == 3
 
     @property
     def string_representation(self):
@@ -99,7 +98,7 @@ class Operand:
             if self._mode % 2 == 1 and self._mode != 1:
                 result = "@" + result
 
-        if self._require_next_instruction and self._next_instruction is not None:
+        if self.require_next_instruction and self._next_instruction is not None:
             result = result.format(self._next_instruction)
         return result
 
@@ -108,6 +107,10 @@ class Operand:
             operations.append({"operation": Operation.DECREMENT_REGISTER,
                                "register": self._reg,
                                "size": size if self._mode == 4 else "word"})
+
+        if self._mode // 2 == 3:
+            operations.append({"operation": Operation.FETCH_NEXT_INSTRUCTION,
+                               "callback": self.set_next_instruction})
 
         fetch_size = size if self._mode == 0 else "word"
         operations.append({"operation": Operation.FETCH_REGISTER,
@@ -125,12 +128,6 @@ class Operand:
                                "size": size if self._mode == 2 else "word"})
 
         if self._mode // 2 == 3:
-            operations.append({"operation": Operation.FETCH_NEXT_INSTRUCTION,
-                               "callback": self.set_next_instruction})
-
-            if self.is_pc():
-                self._inner_register.inc(value=2)
-
             operations.append({"operation": Operation.EXECUTE,
                                "callback": self.add_next_instruction_to_inner_register})
 
@@ -177,8 +174,12 @@ class AbstractCommand:
         self._program_status = program_status
         self._cur_operation = 0
         self._operations = []
+
         self._string_representation = None
         self._on_byte = False
+        self._src_operand = None
+        self._dest_operand = None
+        self._type = None
 
     @property
     def on_byte(self):
@@ -187,6 +188,26 @@ class AbstractCommand:
     @property
     def program_status(self):
         return self._program_status
+
+    @property
+    def has_src_operand(self):
+        return self._src_operand is not None
+
+    @property
+    def has_dest_operand(self):
+        return self._dest_operand is not None
+
+    @property
+    def src_operand(self):
+        return self._src_operand
+
+    @property
+    def dest_operand(self):
+        return self._dest_operand
+
+    @property
+    def type(self):
+        return self._type
 
     def next_operation(self):
         if self._cur_operation < len(self._operations):
@@ -214,14 +235,6 @@ class DoubleOperandCommand(AbstractCommand):
         if self._src_operand.require_next_instruction and self._dest_operand.require_next_instruction:
             raise OperandBothRequireNextInstruction()
 
-    @property
-    def src_operand(self):
-        return self._src_operand
-
-    @property
-    def dest_operand(self):
-        return self._dest_operand
-
     def _add_fetch_operands(self, size: str):
         self._src_operand.add_fetch(operations=self._operations, size=size)
         self._dest_operand.add_fetch(operations=self._operations, size=size)
@@ -231,43 +244,35 @@ class DoubleOperandCommand(AbstractCommand):
 
 
 class SingleOperandCommand(AbstractCommand):
-    def __init__(self, operand: Operand, program_status: ProgramStatus):
+    def __init__(self, dest_operand: Operand, program_status: ProgramStatus):
         super(SingleOperandCommand, self).__init__(program_status)
-        self._operand = operand
-
-    @property
-    def operand(self):
-        return self._operand
+        self._dest_operand = dest_operand
 
     def _add_fetch_operands(self, size: str):
-        self._operand.add_fetch(operations=self._operations, size=size)
+        self._dest_operand.add_fetch(operations=self._operations, size=size)
 
     def _add_store_operands(self, size: str):
-        self._operand.add_store(operations=self._operations, size=size)
+        self._dest_operand.add_store(operations=self._operations, size=size)
 
 
 class CLRCommand(SingleOperandCommand):
     def __init__(self, matcher, program_status: ProgramStatus):
-        super(CLRCommand, self).__init__(operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                         mode=bitarray(matcher.group("destmode"), endian='big')),
+        super(CLRCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
+                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
                                          program_status=program_status)
 
         self._type = InstanceCommand.CLR
         self._on_byte = (matcher.group("msb") == "1")
-        self._string_representation = "CLR" + "B" if self.on_byte else ""
+        self._string_representation = "CLR" + ("B" if self.on_byte else "")
         self._add_decode()
         self._add_fetch_operands(size="byte" if self.on_byte else "word")
         self._add_execute(self.execute)
         self._add_store_operands(size="byte" if self.on_byte else "word")
 
-    @property
-    def type(self):
-        return self._type
-
     def execute(self):
         self.program_status.clear()
         self.program_status.set(bit='Z', value=True)
-        self._operand.inner_register.set(size="byte" if self._on_byte else "word", signed=False, value=0)
+        self._dest_operand.inner_register.set(size="byte" if self._on_byte else "word", signed=False, value=0)
 
 
 _REG_PATTERN = r'(?P<{}>[01]{})'
@@ -295,7 +300,7 @@ class InstanceCommand(enum.Enum):
 
 class Commands:
     @staticmethod
-    def get_command_by_code(code: bitarray, program_status: ProgramStatus):
+    def get_command_by_code(code: bitarray, program_status: ProgramStatus) -> AbstractCommand:
         if code.length() != 16:
             raise CommandWrongNumberBits()
 
@@ -312,56 +317,56 @@ if __name__ == "__main__":
     ps.set('N', True)
     ps.set('C', True)
     com = Commands.get_command_by_code(bitarray("1000101000000000", endian='big'), program_status=ps)
-    print(com.operand.mode)
-    print(com.operand.reg)
+    print(com.dest_operand.mode)
+    print(com.dest_operand.reg)
     for i in com._operations:
         print(i["operation"].name)
 
     print('----------------------')
     com = Commands.get_command_by_code(bitarray("1000101000001000", endian='big'), program_status=ps)
-    print(com.operand.mode)
-    print(com.operand.reg)
+    print(com.dest_operand.mode)
+    print(com.dest_operand.reg)
     for i in com._operations:
         print(i["operation"].name)
 
     print('----------------------')
     com = Commands.get_command_by_code(bitarray("1000101000010000", endian='big'), program_status=ps)
-    print(com.operand.mode)
-    print(com.operand.reg)
+    print(com.dest_operand.mode)
+    print(com.dest_operand.reg)
     for i in com._operations:
         print(i["operation"].name)
 
     print('----------------------')
     com = Commands.get_command_by_code(bitarray("1000101000011000", endian='big'), program_status=ps)
-    print(com.operand.mode)
-    print(com.operand.reg)
+    print(com.dest_operand.mode)
+    print(com.dest_operand.reg)
     for i in com._operations:
         print(i["operation"].name)
 
     print('----------------------')
     com = Commands.get_command_by_code(bitarray("1000101000100000", endian='big'), program_status=ps)
-    print(com.operand.mode)
-    print(com.operand.reg)
+    print(com.dest_operand.mode)
+    print(com.dest_operand.reg)
     for i in com._operations:
         print(i["operation"].name)
 
     print('----------------------')
     com = Commands.get_command_by_code(bitarray("1000101000101000", endian='big'), program_status=ps)
-    print(com.operand.mode)
-    print(com.operand.reg)
+    print(com.dest_operand.mode)
+    print(com.dest_operand.reg)
     for i in com._operations:
         print(i["operation"].name)
 
     print('----------------------')
     com = Commands.get_command_by_code(bitarray("1000101000110000", endian='big'), program_status=ps)
-    print(com.operand.mode)
-    print(com.operand.reg)
+    print(com.dest_operand.mode)
+    print(com.dest_operand.reg)
     for i in com._operations:
         print(i["operation"].name)
 
     print('----------------------')
     com = Commands.get_command_by_code(bitarray("1000101000111000", endian='big'), program_status=ps)
-    print(com.operand.mode)
-    print(com.operand.reg)
+    print(com.dest_operand.mode)
+    print(com.dest_operand.reg)
     for i in com._operations:
         print(i["operation"].name)
