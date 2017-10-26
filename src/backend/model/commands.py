@@ -176,16 +176,16 @@ class Operand:
 
 
 class AbstractCommand:
-    def __init__(self, program_status: ProgramStatus):
+    def __init__(self, program_status: ProgramStatus, type, on_byte: bool):
         self._program_status = program_status
         self._cur_operation = 0
         self._operations = []
 
-        self._string_representation = None
-        self._on_byte = False
+        self._string_representation = type.string_representation + ("B" if on_byte else "")
+        self._on_byte = on_byte
         self._src_operand = None
         self._dest_operand = None
-        self._type = None
+        self._type = type
 
     @property
     def on_byte(self):
@@ -215,6 +215,10 @@ class AbstractCommand:
     def type(self):
         return self._type
 
+    @property
+    def string_representation(self):
+        return self._string_representation
+
     def __iter__(self):
         self._cur_operation = 0
         return self
@@ -239,8 +243,8 @@ class AbstractCommand:
 
 
 class DoubleOperandCommand(AbstractCommand):
-    def __init__(self, src_operand: Operand, dest_operand: Operand, program_status: ProgramStatus):
-        super(DoubleOperandCommand, self).__init__(program_status)
+    def __init__(self, src_operand: Operand, dest_operand: Operand, **kwargs):
+        super(DoubleOperandCommand, self).__init__(**kwargs)
         self._src_operand = src_operand
         self._dest_operand = dest_operand
 
@@ -253,8 +257,8 @@ class DoubleOperandCommand(AbstractCommand):
 
 
 class SingleOperandCommand(AbstractCommand):
-    def __init__(self, dest_operand: Operand, program_status: ProgramStatus):
-        super(SingleOperandCommand, self).__init__(program_status)
+    def __init__(self, dest_operand: Operand, **kwargs):
+        super(SingleOperandCommand, self).__init__(**kwargs)
         self._dest_operand = dest_operand
 
     def _add_fetch_operands(self, size: str):
@@ -265,14 +269,11 @@ class SingleOperandCommand(AbstractCommand):
 
 
 class CLRCommand(SingleOperandCommand):
-    def __init__(self, matcher, program_status: ProgramStatus):
+    def __init__(self, matcher, **kwargs):
         super(CLRCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
                                                               mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         program_status=program_status)
+                                         **kwargs)
 
-        self._type = InstanceCommand.CLR
-        self._on_byte = (matcher.group("msb") == "1")
-        self._string_representation = "CLR" + ("B" if self.on_byte else "")
         self._add_decode()
         self._add_fetch_operands(size="byte" if self.on_byte else "word")
         self._add_execute(self.execute)
@@ -281,7 +282,7 @@ class CLRCommand(SingleOperandCommand):
     def execute(self):
         self.program_status.clear()
         self.program_status.set(bit='Z', value=True)
-        self._dest_operand.inner_register.set(size="byte" if self._on_byte else "word", signed=False, value=0)
+        self._dest_operand.inner_register.set(size="byte" if self.on_byte else "word", signed=False, value=0)
 
 
 _REG_PATTERN = r'(?P<{}>[01]{})'
@@ -292,11 +293,12 @@ _DEST_PATTERN = _MODE_PATTERN.format("destmode", "{3}") + _REG_PATTERN.format("d
 
 
 class InstanceCommand(enum.Enum):
-    CLR = (_MSB_PATTERN + r'000101000' + _DEST_PATTERN, CLRCommand)
+    CLR = (_MSB_PATTERN + r'000101000' + _DEST_PATTERN, CLRCommand, "CLR")
 
-    def __init__(self, pattern, klass):
+    def __init__(self, pattern, klass, representation: str):
         self._pattern = re.compile(pattern=pattern)
         self._klass = klass
+        self._string_representation = representation
 
     @property
     def pattern(self):
@@ -305,6 +307,10 @@ class InstanceCommand(enum.Enum):
     @property
     def klass(self):
         return self._klass
+
+    @property
+    def string_representation(self):
+        return self._string_representation
 
 
 class Commands:
@@ -316,6 +322,10 @@ class Commands:
         for command_instance in list(InstanceCommand):
             matcher = command_instance.pattern.match(code.to01())
             if matcher is not None:
-                return command_instance.klass(matcher, program_status)
+                on_byte = False
+                if "msb" in matcher.groupdict():
+                    on_byte = (matcher.group("msb") == "1")
+                return command_instance.klass(matcher, program_status=program_status,
+                                              type=command_instance, on_byte=on_byte)
 
         raise UnknownCommand(code=code)
