@@ -546,9 +546,9 @@ class MOVCommand(DoubleOperandCommand):
 
     def execute(self):
         size_exec = self.size
+        value = self.src_operand.inner_register.get(size=size_exec, signed=True)
         if self.on_byte and self.dest_operand.mode == 0:
             size_exec = 'word'
-        value = self.src_operand.inner_register.get(size=size_exec, signed=True)
 
         self.program_status.set(bit="N", value=value < 0)
         self.program_status.set(bit="Z", value=value == 0)
@@ -703,6 +703,7 @@ class InstanceCommand(enum.Enum):
     ASR  = (_MSB_PATTERN + r'000110010'  + _DEST_PATTERN,                ASRCommand,  "ASR",  True)
     ASL  = (_MSB_PATTERN + r'000110011'  + _DEST_PATTERN,                ASLCommand,  "ASL",  True)
     ROR  = (_MSB_PATTERN + r'000110000'  + _DEST_PATTERN,                RORCommand,  "ROR",  True)
+    ROL  = (_MSB_PATTERN + r'000110001'  + _DEST_PATTERN,                ROLCommand,  "ROL",  True)
     SWAB = (               r'0000000011' + _DEST_PATTERN,                SWABCommand, "SWAB", True)
     ADC  = (_MSB_PATTERN + r'000101101'  + _DEST_PATTERN,                ADCCommand,  "ADC",  True)
     SBC  = (_MSB_PATTERN + r'000101110'  + _DEST_PATTERN,                SBCCommand,  "SBC",  True)
