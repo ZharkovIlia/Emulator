@@ -47,6 +47,8 @@ class Operand:
         self._inner_register = Register()
         self._inner_address = None
 
+        self.only_store = False
+
     def is_pc(self) -> bool:
         return self._reg == 7
 
@@ -116,6 +118,8 @@ class Operand:
             operations.append({"operation": Operation.FETCH_NEXT_INSTRUCTION,
                                "callback": self.set_next_instruction})
 
+        if self._mode == 0 and self.only_store:
+            return
         fetch_size = size if self._mode == 0 else "word"
         operations.append({"operation": Operation.FETCH_REGISTER,
                            "register": self._reg,
@@ -140,6 +144,8 @@ class Operand:
             operations.append({"operation": Operation.EXECUTE,
                                "callback": self.copy_inner_register_to_inner_address})
 
+        if self._mode in (1, 2, 4, 6) and self.only_store:
+            return
         fetch_size = size if self._mode in (1, 2, 4, 6) else "word"
         operations.append({"operation": Operation.FETCH_ADDRESS,
                            "address": lambda: self._inner_register.get(size="word", signed=False),
@@ -152,6 +158,9 @@ class Operand:
 
         operations.append({"operation": Operation.EXECUTE,
                            "callback": self.copy_inner_register_to_inner_address})
+
+        if self.only_store:
+            return
         operations.append({"operation": Operation.FETCH_ADDRESS,
                            "address": lambda: self._inner_register.get(size="word", signed=False),
                            "size": size,
@@ -224,6 +233,10 @@ class AbstractCommand:
     def string_representation(self):
         return self._string_representation
 
+    @property
+    def dest_stored(self):
+        return self._type.dest_stored
+
     def __iter__(self):
         self._cur_operation = 0
         return self
@@ -249,7 +262,7 @@ class AbstractCommand:
 
 class DoubleOperandCommand(AbstractCommand):
     def __init__(self, matcher, **kwargs):
-        super(DoubleOperandCommand, self).__init__(matcher, **kwargs)
+        super(DoubleOperandCommand, self).__init__(**kwargs)
         self._src_operand = Operand(reg=bitarray(matcher.group("srcreg"), endian='big'),
                                     mode=bitarray(matcher.group("srcmode"), endian='big'))
         self._dest_operand = Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
@@ -268,7 +281,8 @@ class DoubleOperandCommand(AbstractCommand):
         self._add_decode()
         self._add_fetch_operands(size=self.size)
         self._add_execute(self.execute)
-        self._add_store_operands(size=self.size)
+        if self.dest_stored:
+            self._add_store_operands(size=self.size)
 
     def execute(self):
         raise NotImplementedError()
@@ -292,7 +306,8 @@ class SingleOperandCommand(AbstractCommand):
         self._add_decode()
         self._add_fetch_operands(size=self.size)
         self._add_execute(self.execute)
-        self._add_store_operands(size=self.size)
+        if self.dest_stored:
+            self._add_store_operands(size=self.size)
 
     def execute(self):
         raise NotImplementedError()
@@ -541,6 +556,7 @@ class MOVCommand(DoubleOperandCommand):
         self.dest_operand.inner_register.set(size=size_exec, signed=True, value=value)
 
     def _add_all_operations(self):
+        self.dest_operand.only_store = True
         size_store = self.size
         if self.on_byte and self.dest_operand.mode == 0:
             size_store = 'word'
@@ -678,36 +694,37 @@ _REG_PATTERN = _COMM_PATTERN.format("reg", "{3}")
 
 
 class InstanceCommand(enum.Enum):
-    CLR  = (_MSB_PATTERN + r'000101000'  + _DEST_PATTERN,                CLRCommand,  "CLR")
-    COM  = (_MSB_PATTERN + r'000101001'  + _DEST_PATTERN,                COMCommand,  "COM")
-    INC  = (_MSB_PATTERN + r'000101010'  + _DEST_PATTERN,                INCCommand,  "INC")
-    DEC  = (_MSB_PATTERN + r'000101011'  + _DEST_PATTERN,                DECCommand,  "DEC")
-    NEG  = (_MSB_PATTERN + r'000101100'  + _DEST_PATTERN,                NEGCommand,  "NEG")
-    TST  = (_MSB_PATTERN + r'000101111'  + _DEST_PATTERN,                TSTCommand,  "TST")
-    ASR  = (_MSB_PATTERN + r'000110010'  + _DEST_PATTERN,                ASRCommand,  "ASR")
-    ASL  = (_MSB_PATTERN + r'000110011'  + _DEST_PATTERN,                ASLCommand,  "ASL")
-    ROR  = (_MSB_PATTERN + r'000110000'  + _DEST_PATTERN,                RORCommand,  "ROR")
-    SWAB = (               r'0000000011' + _DEST_PATTERN,                SWABCommand, "SWAB")
-    ADC  = (_MSB_PATTERN + r'000101101'  + _DEST_PATTERN,                ADCCommand,  "ADC")
-    SBC  = (_MSB_PATTERN + r'000101110'  + _DEST_PATTERN,                SBCCommand,  "SBC")
-    SXT  = (               r'0000110111' + _DEST_PATTERN,                SXTCommand,  "SXT")
-    MOV  = (_MSB_PATTERN + r'001'        + _SRC_PATTERN + _DEST_PATTERN, MOVCommand,  "MOV")
-    CMP  = (_MSB_PATTERN + r'010'        + _SRC_PATTERN + _DEST_PATTERN, CMPCommand,  "CMP")
-    ADD  = (               r'0110'       + _SRC_PATTERN + _DEST_PATTERN, ADDCommand,  "ADD")
-    SUB  = (               r'1110'       + _SRC_PATTERN + _DEST_PATTERN, SUBCommand,  "SUB")
-    BIT  = (_MSB_PATTERN + r'011'        + _SRC_PATTERN + _DEST_PATTERN, BITCommand,  "BIT")
-    BIC  = (_MSB_PATTERN + r'100'        + _SRC_PATTERN + _DEST_PATTERN, BICCommand,  "BIC")
-    BIS  = (_MSB_PATTERN + r'101'        + _SRC_PATTERN + _DEST_PATTERN, BISCommand,  "BIS")
-    #MUL  = (               r'0111000'    + _REG_PATTERN + _SRC_PATTERN,  MULCommand,  "MUL")
-    #DIV  = (               r'0111001'    + _REG_PATTERN + _SRC_PATTERN,  DIVCommand,  "DIV")
-    #ASH  = (               r'0111010'    + _REG_PATTERN + _SRC_PATTERN,  ASHCommand,  "ASH")
-    #ASHC = (               r'0111011'    + _REG_PATTERN + _SRC_PATTERN,  ASHCCommand, "ASHC")
-    #XOR  = (               r'0111100'    + _REG_PATTERN + _SRC_PATTERN,  XORCommand,  "XOR")
+    CLR  = (_MSB_PATTERN + r'000101000'  + _DEST_PATTERN,                CLRCommand,  "CLR",  True)
+    COM  = (_MSB_PATTERN + r'000101001'  + _DEST_PATTERN,                COMCommand,  "COM",  True)
+    INC  = (_MSB_PATTERN + r'000101010'  + _DEST_PATTERN,                INCCommand,  "INC",  True)
+    DEC  = (_MSB_PATTERN + r'000101011'  + _DEST_PATTERN,                DECCommand,  "DEC",  True)
+    NEG  = (_MSB_PATTERN + r'000101100'  + _DEST_PATTERN,                NEGCommand,  "NEG",  True)
+    TST  = (_MSB_PATTERN + r'000101111'  + _DEST_PATTERN,                TSTCommand,  "TST",  False)
+    ASR  = (_MSB_PATTERN + r'000110010'  + _DEST_PATTERN,                ASRCommand,  "ASR",  True)
+    ASL  = (_MSB_PATTERN + r'000110011'  + _DEST_PATTERN,                ASLCommand,  "ASL",  True)
+    ROR  = (_MSB_PATTERN + r'000110000'  + _DEST_PATTERN,                RORCommand,  "ROR",  True)
+    SWAB = (               r'0000000011' + _DEST_PATTERN,                SWABCommand, "SWAB", True)
+    ADC  = (_MSB_PATTERN + r'000101101'  + _DEST_PATTERN,                ADCCommand,  "ADC",  True)
+    SBC  = (_MSB_PATTERN + r'000101110'  + _DEST_PATTERN,                SBCCommand,  "SBC",  True)
+    SXT  = (               r'0000110111' + _DEST_PATTERN,                SXTCommand,  "SXT",  True)
+    MOV  = (_MSB_PATTERN + r'001'        + _SRC_PATTERN + _DEST_PATTERN, MOVCommand,  "MOV",  True)
+    CMP  = (_MSB_PATTERN + r'010'        + _SRC_PATTERN + _DEST_PATTERN, CMPCommand,  "CMP",  False)
+    ADD  = (               r'0110'       + _SRC_PATTERN + _DEST_PATTERN, ADDCommand,  "ADD",  True)
+    SUB  = (               r'1110'       + _SRC_PATTERN + _DEST_PATTERN, SUBCommand,  "SUB",  True)
+    BIT  = (_MSB_PATTERN + r'011'        + _SRC_PATTERN + _DEST_PATTERN, BITCommand,  "BIT",  False)
+    BIC  = (_MSB_PATTERN + r'100'        + _SRC_PATTERN + _DEST_PATTERN, BICCommand,  "BIC",  True)
+    BIS  = (_MSB_PATTERN + r'101'        + _SRC_PATTERN + _DEST_PATTERN, BISCommand,  "BIS",  True)
+    #MUL  = (               r'0111000'    + _REG_PATTERN + _SRC_PATTERN,  MULCommand,  "MUL",  True)
+    #DIV  = (               r'0111001'    + _REG_PATTERN + _SRC_PATTERN,  DIVCommand,  "DIV",  True)
+    #ASH  = (               r'0111010'    + _REG_PATTERN + _SRC_PATTERN,  ASHCommand,  "ASH",  True)
+    #ASHC = (               r'0111011'    + _REG_PATTERN + _SRC_PATTERN,  ASHCCommand, "ASHC", True)
+    #XOR  = (               r'0111100'    + _REG_PATTERN + _SRC_PATTERN,  XORCommand,  "XOR",  True)
 
-    def __init__(self, pattern, klass, representation: str):
+    def __init__(self, pattern, klass, representation: str, dest_stored: bool):
         self._pattern = re.compile(pattern=pattern)
         self._klass = klass
         self._string_representation = representation
+        self._dest_stored = dest_stored
 
     @property
     def pattern(self):
@@ -720,6 +737,10 @@ class InstanceCommand(enum.Enum):
     @property
     def string_representation(self):
         return self._string_representation
+
+    @property
+    def dest_stored(self):
+        return self._dest_stored
 
 
 class Commands:
