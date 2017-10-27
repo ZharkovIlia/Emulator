@@ -5,7 +5,8 @@ from src.backend.extra.exceptions import\
     CommandWrongNumberBits,\
     UnknownCommand,\
     OperandWrongNumberOfBits,\
-    OperandWrongPCMode
+    OperandWrongPCMode,\
+    CommandJMPToRegister
 from bitarray import bitarray
 
 from src.backend.model.programstatus import ProgramStatus
@@ -24,6 +25,7 @@ class Operation(enum.Enum):
     INCREMENT_REGISTER      = enum.auto()
     DECREMENT_REGISTER      = enum.auto()
     BRANCH_IF               = enum.auto()
+    JUMP                    = enum.auto()
 
 
 class Operand:
@@ -48,7 +50,7 @@ class Operand:
         self._inner_register = Register()
         self._inner_address = None
 
-        self.only_store = False
+        self.do_not_fetch_operand = False
 
     def is_pc(self) -> bool:
         return self._reg == 7
@@ -119,7 +121,7 @@ class Operand:
             operations.append({"operation": Operation.FETCH_NEXT_INSTRUCTION,
                                "callback": self.set_next_instruction})
 
-        if self._mode == 0 and self.only_store:
+        if self._mode == 0 and self.do_not_fetch_operand:
             return
         fetch_size = size if self._mode == 0 else "word"
         operations.append({"operation": Operation.FETCH_REGISTER,
@@ -145,7 +147,7 @@ class Operand:
             operations.append({"operation": Operation.EXECUTE,
                                "callback": self.copy_inner_register_to_inner_address})
 
-        if self._mode in (1, 2, 4, 6) and self.only_store:
+        if self._mode in (1, 2, 4, 6) and self.do_not_fetch_operand:
             return
         fetch_size = size if self._mode in (1, 2, 4, 6) else "word"
         operations.append({"operation": Operation.FETCH_ADDRESS,
@@ -160,7 +162,7 @@ class Operand:
         operations.append({"operation": Operation.EXECUTE,
                            "callback": self.copy_inner_register_to_inner_address})
 
-        if self.only_store:
+        if self.do_not_fetch_operand:
             return
         operations.append({"operation": Operation.FETCH_ADDRESS,
                            "address": lambda: self._inner_register.get(size="word", signed=False),
@@ -358,6 +360,25 @@ class BranchCommand(AbstractCommand):
 
     def execute(self):
         raise NotImplementedError()
+
+
+class JMPCommand(AbstractCommand):
+    def __init__(self, matcher, **kwargs):
+        super(JMPCommand, self).__init__(**kwargs)
+        dest_reg = bitarray(matcher.group("destreg"), endian='big')
+        dest_mode = bitarray(matcher.group("destmode"), endian='big')
+        if dest_mode.to01() == "000":
+            raise CommandJMPToRegister()
+        self._dest_operand = Operand(reg=dest_reg, mode=dest_mode)
+        self._dest_operand.do_not_fetch_operand = True
+
+        self._add_decode()
+        self._add_fetch_operands(size="word")
+        self._add_jump()
+
+    def _add_jump(self):
+        self._operations.append({"operation": Operation.JUMP,
+                                 "address": lambda: self.dest_operand.inner_register.get(size="word", signed=False)})
 
 
 class CLRCommand(SingleOperandCommand):
@@ -603,7 +624,7 @@ class MOVCommand(DoubleOperandCommand):
         self.dest_operand.inner_register.set(size=size_exec, signed=True, value=value)
 
     def _add_all_operations(self):
-        self.dest_operand.only_store = True
+        self.dest_operand.do_not_fetch_operand = True
         size_store = self.size
         if self.on_byte and self.dest_operand.mode == 0:
             size_store = 'word'
@@ -754,6 +775,120 @@ class BRCommand(BranchCommand):
         self._if_branch = True
 
 
+class BNECommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BNECommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = not self.program_status.get(bit="Z")
+
+
+class BEQCommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BEQCommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = self.program_status.get(bit="Z")
+
+
+class BPLCommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BPLCommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = not self.program_status.get(bit="N")
+
+
+class BMICommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BMICommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = self.program_status.get(bit="N")
+
+
+class BVCCommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BVCCommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = not self.program_status.get(bit="V")
+
+
+class BVSCommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BVSCommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = self.program_status.get(bit="V")
+
+
+class BCCCommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BCCCommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = not self.program_status.get(bit="C")
+
+
+class BCSCommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BCSCommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = self.program_status.get(bit="C")
+
+
+class BGECommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BGECommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = not (self.program_status.get(bit="N") ^ self.program_status.get(bit="V"))
+
+
+class BLTCommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BLTCommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = (self.program_status.get(bit="N") ^ self.program_status.get(bit="V"))
+
+
+class BGTCommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BGTCommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = not (self.program_status.get(bit="Z") or
+                               (self.program_status.get(bit="N") ^ self.program_status.get(bit="V")))
+
+
+class BLECommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BLECommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = (self.program_status.get(bit="Z") or
+                           (self.program_status.get(bit="N") ^ self.program_status.get(bit="V")))
+
+
+class BHICommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BHICommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = not self.program_status.get(bit="C") and not self.program_status.get(bit="Z")
+
+
+class BLOSCommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BLOSCommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = self.program_status.get(bit="C") or self.program_status.get(bit="Z")
+
+
 _COMM_PATTERN = r'(?P<{}>[01]{})'
 _MSB_PATTERN = r'(?P<msb>0|1)'
 _SRC_PATTERN = _COMM_PATTERN.format("srcmode", "{3}") + _COMM_PATTERN.format("srcreg", "{3}")
@@ -786,6 +921,24 @@ class InstanceCommand(enum.Enum):
     BIS  = (_MSB_PATTERN + r'101'        + _SRC_PATTERN + _DEST_PATTERN, BISCommand,  "BIS",  True)
     XOR  = (               r'0111100'    + _REG_PATTERN + _DEST_PATTERN, XORCommand,  "XOR",  True)
     BR   = (               r'00000001'   + _OFFSET_PATTERN,              BRCommand,   "BR",   False)
+    BNE  = (               r'00000010'   + _OFFSET_PATTERN,              BNECommand,  "BNE",  False)
+    BEQ  = (               r'00000011'   + _OFFSET_PATTERN,              BEQCommand,  "BEQ",  False)
+    BPL  = (               r'10000000'   + _OFFSET_PATTERN,              BPLCommand,  "BPL",  False)
+    BMI  = (               r'10000001'   + _OFFSET_PATTERN,              BMICommand,  "BMI",  False)
+    BVC  = (               r'10000100'   + _OFFSET_PATTERN,              BVCCommand,  "BVC",  False)
+    BVS  = (               r'10000101'   + _OFFSET_PATTERN,              BVSCommand,  "BVS",  False)
+    BCC  = (               r'10000110'   + _OFFSET_PATTERN,              BCCCommand,  "BCC",  False)
+    BCS  = (               r'10000111'   + _OFFSET_PATTERN,              BCSCommand,  "BCS",  False)
+    BGE  = (               r'00000100'   + _OFFSET_PATTERN,              BGECommand,  "BGE",  False)
+    BLT  = (               r'00000101'   + _OFFSET_PATTERN,              BLTCommand,  "BLT",  False)
+    BGT  = (               r'00000110'   + _OFFSET_PATTERN,              BGTCommand,  "BGT",  False)
+    BLE  = (               r'00000111'   + _OFFSET_PATTERN,              BLECommand,  "BLE",  False)
+    BHI  = (               r'10000010'   + _OFFSET_PATTERN,              BHICommand,  "BHI",  False)
+    BLOS = (               r'10000011'   + _OFFSET_PATTERN,              BLOSCommand, "BLOS", False)
+    JMP  = (               r'0000000001' + _DEST_PATTERN,                JMPCommand,  "JMP",  False)
+
+    #BHIS = (               r'10000110'   + _OFFSET_PATTERN,              BHISCommand, "BHIS", False)
+    #BLO  = (               r'10000111'   + _OFFSET_PATTERN,              BLOCommand,  "BLO",  False)
     #MUL  = (               r'0111000'    + _REG_PATTERN + _SRC_PATTERN,  MULCommand,  "MUL",  True)
     #DIV  = (               r'0111001'    + _REG_PATTERN + _SRC_PATTERN,  DIVCommand,  "DIV",  True)
     #ASH  = (               r'0111010'    + _REG_PATTERN + _SRC_PATTERN,  ASHCommand,  "ASH",  True)

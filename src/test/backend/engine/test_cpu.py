@@ -554,5 +554,12 @@ class CPUTest(unittest.TestCase):
         self.cpu.execute_next()
         self.assertEqual(self.registers[7].word().to01(), "0000000100000000")
 
+    def test_jmp(self):
+        self.memory.store(address=256, size="word", mem=bitarray("0000000001001010"))
+        self.registers[2].set_word(value=bitarray("1000100010100100"))
+        self.cpu.execute_next()
+        self.assertEqual(self.registers[7].word().to01(), "1000100010100100")
+
+
 if __name__ == "__main__":
     unittest.main()

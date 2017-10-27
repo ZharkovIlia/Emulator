@@ -54,6 +54,9 @@ class CPU:
                     pc_value = self._registers[7].get(size="word", signed=False)
                     self._registers[7].set(size="word", signed=False, value=pc_value + op["offset"])
 
+            elif optype is Operation.JUMP:
+                self._registers[7].set(size="word", signed=False, value=op["address"]())
+
             elif optype is Operation.DONE:
                 break
 

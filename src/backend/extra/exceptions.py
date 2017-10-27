@@ -83,3 +83,8 @@ class OperandWrongNumberOfBits(CommandException):
 class OperandWrongPCMode(CommandException):
     def __init__(self):
         super(OperandWrongPCMode, self).__init__(what="Mode of PC operand is not in (2, 3, 6, 7)")
+
+
+class CommandJMPToRegister(CommandException):
+    def __init__(self):
+        super(CommandJMPToRegister, self).__init__(what="Cannot jump to register")
