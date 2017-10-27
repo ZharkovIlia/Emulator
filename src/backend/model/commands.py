@@ -23,6 +23,7 @@ class Operation(enum.Enum):
     DONE                    = enum.auto()
     INCREMENT_REGISTER      = enum.auto()
     DECREMENT_REGISTER      = enum.auto()
+    BRANCH_IF               = enum.auto()
 
 
 class Operand:
@@ -326,6 +327,34 @@ class RegisterSourceCommand(AbstractCommand):
         self._add_execute(self.execute)
         if self.dest_stored:
             self._add_store_operands(size=self.size)
+
+    def execute(self):
+        raise NotImplementedError()
+
+
+class BranchCommand(AbstractCommand):
+    def __init__(self, matcher, **kwargs):
+        super(BranchCommand, self).__init__(**kwargs)
+        self._offset = int.from_bytes(bitarray(matcher.group("offset"), endian='big').tobytes(),
+                                      byteorder='big', signed=True)
+        self._offset *= 2
+        self._if_branch = False
+
+        self._add_all_operations()
+
+    @property
+    def offset(self):
+        return self._offset
+
+    def _add_all_operations(self):
+        self._add_decode()
+        self._add_execute(self.execute)
+        self._add_branch()
+
+    def _add_branch(self):
+        self._operations.append({"operation": Operation.BRANCH_IF,
+                                 "if": lambda: self._if_branch,
+                                 "offset": self._offset})
 
     def execute(self):
         raise NotImplementedError()
@@ -717,11 +746,20 @@ class XORCommand(RegisterSourceCommand):
         self.dest_operand.inner_register.set(size="word", signed=True, value=tmp)
 
 
+class BRCommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(BRCommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = True
+
+
 _COMM_PATTERN = r'(?P<{}>[01]{})'
 _MSB_PATTERN = r'(?P<msb>0|1)'
 _SRC_PATTERN = _COMM_PATTERN.format("srcmode", "{3}") + _COMM_PATTERN.format("srcreg", "{3}")
 _DEST_PATTERN = _COMM_PATTERN.format("destmode", "{3}") + _COMM_PATTERN.format("destreg", "{3}")
 _REG_PATTERN = _COMM_PATTERN.format("reg", "{3}")
+_OFFSET_PATTERN = _COMM_PATTERN.format("offset", "{8}")
 
 
 class InstanceCommand(enum.Enum):
@@ -747,6 +785,7 @@ class InstanceCommand(enum.Enum):
     BIC  = (_MSB_PATTERN + r'100'        + _SRC_PATTERN + _DEST_PATTERN, BICCommand,  "BIC",  True)
     BIS  = (_MSB_PATTERN + r'101'        + _SRC_PATTERN + _DEST_PATTERN, BISCommand,  "BIS",  True)
     XOR  = (               r'0111100'    + _REG_PATTERN + _DEST_PATTERN, XORCommand,  "XOR",  True)
+    BR   = (               r'00000001'   + _OFFSET_PATTERN,              BRCommand,   "BR",   False)
     #MUL  = (               r'0111000'    + _REG_PATTERN + _SRC_PATTERN,  MULCommand,  "MUL",  True)
     #DIV  = (               r'0111001'    + _REG_PATTERN + _SRC_PATTERN,  DIVCommand,  "DIV",  True)
     #ASH  = (               r'0111010'    + _REG_PATTERN + _SRC_PATTERN,  ASHCommand,  "ASH",  True)

@@ -544,5 +544,15 @@ class CPUTest(unittest.TestCase):
         self.assertEqual(self.registers[3].word().to01(), "0111011111011010")
         self.assertEqual(self.registers[2].word().to01(), "1111111101111111")
 
+    def test_br_positive(self):
+        self.memory.store(address=256, size="word", mem=bitarray("0000000100000001"))
+        self.cpu.execute_next()
+        self.assertEqual(self.registers[7].word().to01(), "0000000100000100")
+
+    def test_br_negative(self):
+        self.memory.store(address=256, size="word", mem=bitarray("0000000111111111"))
+        self.cpu.execute_next()
+        self.assertEqual(self.registers[7].word().to01(), "0000000100000000")
+
 if __name__ == "__main__":
     unittest.main()
