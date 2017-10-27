@@ -532,5 +532,17 @@ class CPUTest(unittest.TestCase):
         self.assertEqual(self.registers[3].word().to01(), "0111011111011010")
         self.assertEqual(self.registers[2].word().to01(), "1111111111111111")
 
+    def test_xor(self):
+        self.memory.store(address=256, size="word", mem=bitarray("0111100011000010"))
+        self.registers[2].set_word(value=bitarray("1000100010100101"))
+        self.registers[3].set_word(value=bitarray("0111011111011010"))
+        self.ps.clear()
+        self.ps.set(bit="Z", value=True)
+        self.ps.set(bit="V", value=True)
+        self.cpu.execute_next()
+        self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=0, V=0))
+        self.assertEqual(self.registers[3].word().to01(), "0111011111011010")
+        self.assertEqual(self.registers[2].word().to01(), "1111111101111111")
+
 if __name__ == "__main__":
     unittest.main()
