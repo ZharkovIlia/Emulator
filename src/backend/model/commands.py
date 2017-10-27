@@ -176,16 +176,21 @@ class Operand:
 
 
 class AbstractCommand:
-    def __init__(self, program_status: ProgramStatus, type, on_byte: bool):
+    def __init__(self, program_status: ProgramStatus, type_, on_byte: bool):
         self._program_status = program_status
         self._cur_operation = 0
         self._operations = []
 
-        self._string_representation = type.string_representation + ("B" if on_byte else "")
+        self._string_representation = type_.string_representation + ("B" if on_byte else "")
         self._on_byte = on_byte
+        self._size = 'byte' if self._on_byte else 'word'
         self._src_operand = None
         self._dest_operand = None
-        self._type = type
+        self._type = type_
+
+    @property
+    def size(self):
+        return self._size
 
     @property
     def on_byte(self):
@@ -243,10 +248,14 @@ class AbstractCommand:
 
 
 class DoubleOperandCommand(AbstractCommand):
-    def __init__(self, src_operand: Operand, dest_operand: Operand, **kwargs):
-        super(DoubleOperandCommand, self).__init__(**kwargs)
-        self._src_operand = src_operand
-        self._dest_operand = dest_operand
+    def __init__(self, matcher, **kwargs):
+        super(DoubleOperandCommand, self).__init__(matcher, **kwargs)
+        self._src_operand = Operand(reg=bitarray(matcher.group("srcreg"), endian='big'),
+                                    mode=bitarray(matcher.group("srcmode"), endian='big'))
+        self._dest_operand = Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
+                                     mode=bitarray(matcher.group("destmode"), endian='big'))
+
+        self._add_all_operations()
 
     def _add_fetch_operands(self, size: str):
         self._src_operand.add_fetch(operations=self._operations, size=size)
@@ -255,11 +264,23 @@ class DoubleOperandCommand(AbstractCommand):
     def _add_store_operands(self, size: str):
         self._dest_operand.add_store(operations=self._operations, size=size)
 
+    def _add_all_operations(self):
+        self._add_decode()
+        self._add_fetch_operands(size=self.size)
+        self._add_execute(self.execute)
+        self._add_store_operands(size=self.size)
+
+    def execute(self):
+        raise NotImplementedError()
+
 
 class SingleOperandCommand(AbstractCommand):
-    def __init__(self, dest_operand: Operand, **kwargs):
+    def __init__(self, matcher, **kwargs):
         super(SingleOperandCommand, self).__init__(**kwargs)
-        self._dest_operand = dest_operand
+        self._dest_operand = Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
+                                     mode=bitarray(matcher.group("destmode"), endian='big'))
+
+        self._add_all_operations()
 
     def _add_fetch_operands(self, size: str):
         self._dest_operand.add_fetch(operations=self._operations, size=size)
@@ -267,62 +288,48 @@ class SingleOperandCommand(AbstractCommand):
     def _add_store_operands(self, size: str):
         self._dest_operand.add_store(operations=self._operations, size=size)
 
+    def _add_all_operations(self):
+        self._add_decode()
+        self._add_fetch_operands(size=self.size)
+        self._add_execute(self.execute)
+        self._add_store_operands(size=self.size)
+
+    def execute(self):
+        raise NotImplementedError()
+
 
 class CLRCommand(SingleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(CLRCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(CLRCommand, self).__init__(**kwargs)
 
     def execute(self):
         self.program_status.clear()
         self.program_status.set(bit='Z', value=True)
-        self._dest_operand.inner_register.set(size="byte" if self.on_byte else "word", signed=False, value=0)
+        self._dest_operand.inner_register.set(size=self.size, signed=False, value=0)
 
 
 class COMCommand(SingleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(COMCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(COMCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
-        value = self.dest_operand.inner_register.get(size=size, signed=True)
+        value = self.dest_operand.inner_register.get(size=self.size, signed=True)
         value = ~value
         self.program_status.set(bit="N", value=value < 0)
         self.program_status.set(bit="Z", value=value == 0)
         self.program_status.set(bit="V", value=False)
         self.program_status.set(bit="C", value=True)
-        self.dest_operand.inner_register.set(size=size, signed=True, value=value)
+        self.dest_operand.inner_register.set(size=self.size, signed=True, value=value)
 
 
 class INCCommand(SingleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(INCCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(INCCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
-        value = self.dest_operand.inner_register.get(size=size, signed=True)
-        if value == Register.BOUND_PROPERTIES[(size, True)][1]:
-            value = Register.BOUND_PROPERTIES[(size, True)][0]
+        value = self.dest_operand.inner_register.get(size=self.size, signed=True)
+        if value == Register.BOUND_PROPERTIES[(self.size, True)][1]:
+            value = Register.BOUND_PROPERTIES[(self.size, True)][0]
             self.program_status.set(bit="V", value=True)
         else:
             value += 1
@@ -330,25 +337,17 @@ class INCCommand(SingleOperandCommand):
 
         self.program_status.set(bit="N", value=value < 0)
         self.program_status.set(bit="Z", value=value == 0)
-        self.dest_operand.inner_register.set(size=size, signed=True, value=value)
+        self.dest_operand.inner_register.set(size=self.size, signed=True, value=value)
 
 
 class DECCommand(SingleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(DECCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(DECCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
-        value = self.dest_operand.inner_register.get(size=size, signed=True)
-        if value == Register.BOUND_PROPERTIES[(size, True)][0]:
-            value = Register.BOUND_PROPERTIES[(size, True)][1]
+        value = self.dest_operand.inner_register.get(size=self.size, signed=True)
+        if value == Register.BOUND_PROPERTIES[(self.size, True)][0]:
+            value = Register.BOUND_PROPERTIES[(self.size, True)][1]
             self.program_status.set(bit="V", value=True)
         else:
             value -= 1
@@ -356,47 +355,31 @@ class DECCommand(SingleOperandCommand):
 
         self.program_status.set(bit="N", value=value < 0)
         self.program_status.set(bit="Z", value=value == 0)
-        self.dest_operand.inner_register.set(size=size, signed=True, value=value)
+        self.dest_operand.inner_register.set(size=self.size, signed=True, value=value)
 
 
 class NEGCommand(SingleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(NEGCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(NEGCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
-        value = self.dest_operand.inner_register.get(size=size, signed=True)
-        if value != Register.BOUND_PROPERTIES[(size, True)][0]:
+        value = self.dest_operand.inner_register.get(size=self.size, signed=True)
+        if value != Register.BOUND_PROPERTIES[(self.size, True)][0]:
             value = -value
 
         self.program_status.set(bit="N", value=value < 0)
         self.program_status.set(bit="Z", value=value == 0)
-        self.program_status.set(bit="V", value=(value == Register.BOUND_PROPERTIES[(size, True)][0]))
+        self.program_status.set(bit="V", value=(value == Register.BOUND_PROPERTIES[(self.size, True)][0]))
         self.program_status.set(bit="C", value=value != 0)
-        self.dest_operand.inner_register.set(size=size, signed=True, value=value)
+        self.dest_operand.inner_register.set(size=self.size, signed=True, value=value)
 
 
 class TSTCommand(SingleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(TSTCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(TSTCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
-        value = self.dest_operand.inner_register.get(size=size, signed=True)
+        value = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
         self.program_status.clear()
         self.program_status.set(bit="N", value=value < 0)
@@ -404,120 +387,82 @@ class TSTCommand(SingleOperandCommand):
 
 
 class ASRCommand(SingleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(ASRCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(ASRCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
-        value = self.dest_operand.inner_register.get(size=size, signed=True)
+        value = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
         self.program_status.set(bit="C", value=value % 2 == 1)
         value >>= 1
         self.program_status.set(bit="N", value=value < 0)
         self.program_status.set(bit="Z", value=value == 0)
         self.program_status.set(bit="V", value=self.program_status.get(bit="C") ^
-                                               self.program_status.get(bit="N"))
+                                self.program_status.get(bit="N"))
 
-        self.dest_operand.inner_register.set(size=size, signed=True, value=value)
+        self.dest_operand.inner_register.set(size=self.size, signed=True, value=value)
 
 
 class ASLCommand(SingleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(ASLCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(ASLCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
-        value = self.dest_operand.inner_register.get(size=size, signed=False)
+        value = self.dest_operand.inner_register.get(size=self.size, signed=False)
 
         value <<= 1
-        self.program_status.set(bit="C", value=value > Register.BOUND_PROPERTIES[(size, False)][1])
-        value %= (Register.BOUND_PROPERTIES[(size, False)][1] + 1)
-        self.program_status.set(bit="N", value=value > Register.BOUND_PROPERTIES[(size, True)][1])
+        self.program_status.set(bit="C", value=value > Register.BOUND_PROPERTIES[(self.size, False)][1])
+        value %= (Register.BOUND_PROPERTIES[(self.size, False)][1] + 1)
+        self.program_status.set(bit="N", value=value > Register.BOUND_PROPERTIES[(self.size, True)][1])
         self.program_status.set(bit="Z", value=value == 0)
         self.program_status.set(bit="V", value=self.program_status.get(bit="C") ^
-                                               self.program_status.get(bit="N"))
+                                self.program_status.get(bit="N"))
 
-        self.dest_operand.inner_register.set(size=size, signed=False, value=value)
+        self.dest_operand.inner_register.set(size=self.size, signed=False, value=value)
 
 
 class RORCommand(SingleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(RORCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(RORCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
-        value = self.dest_operand.inner_register.get(size=size, signed=False)
+        value = self.dest_operand.inner_register.get(size=self.size, signed=False)
 
         tmp_bit = (value % 2 == 1)
         value >>= 1
-        value += (0 if self.program_status.get(bit="C") is False else Register.BOUND_PROPERTIES[(size, True)][1] + 1)
+        value += (0 if self.program_status.get(bit="C") is False
+                  else Register.BOUND_PROPERTIES[(self.size, True)][1] + 1)
         self.program_status.set(bit="C", value=tmp_bit)
-        self.program_status.set(bit="N", value=value > Register.BOUND_PROPERTIES[(size, True)][1])
+        self.program_status.set(bit="N", value=value > Register.BOUND_PROPERTIES[(self.size, True)][1])
         self.program_status.set(bit="Z", value=value == 0)
         self.program_status.set(bit="V", value=self.program_status.get(bit="C") ^
-                                               self.program_status.get(bit="N"))
+                                self.program_status.get(bit="N"))
 
-        self.dest_operand.inner_register.set(size=size, signed=False, value=value)
+        self.dest_operand.inner_register.set(size=self.size, signed=False, value=value)
 
 
 class ROLCommand(SingleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(ROLCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(ROLCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
-        value = self.dest_operand.inner_register.get(size=size, signed=False)
+        value = self.dest_operand.inner_register.get(size=self.size, signed=False)
 
         value <<= 1
         value += (0 if self.program_status.get(bit="C") is False else 1)
-        self.program_status.set(bit="C", value=value > Register.BOUND_PROPERTIES[(size, False)][1])
-        value %= (Register.BOUND_PROPERTIES[(size, False)][1] + 1)
-        self.program_status.set(bit="N", value=value > Register.BOUND_PROPERTIES[(size, True)][1])
+        self.program_status.set(bit="C", value=value > Register.BOUND_PROPERTIES[(self.size, False)][1])
+        value %= (Register.BOUND_PROPERTIES[(self.size, False)][1] + 1)
+        self.program_status.set(bit="N", value=value > Register.BOUND_PROPERTIES[(self.size, True)][1])
         self.program_status.set(bit="Z", value=value == 0)
         self.program_status.set(bit="V", value=self.program_status.get(bit="C") ^
-                                               self.program_status.get(bit="N"))
+                                self.program_status.get(bit="N"))
 
-        self.dest_operand.inner_register.set(size=size, signed=False, value=value)
+        self.dest_operand.inner_register.set(size=self.size, signed=False, value=value)
 
 
 class SWABCommand(SingleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(SWABCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                               mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(SWABCommand, self).__init__(**kwargs)
 
     def execute(self):
         self.dest_operand.inner_register.reverse()
@@ -529,24 +474,16 @@ class SWABCommand(SingleOperandCommand):
 
 
 class ADCCommand(SingleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(ADCCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(ADCCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
         tmp_bit = self.program_status.get(bit="C")
-        value = self.dest_operand.inner_register.get(size=size, signed=True)
+        value = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
         self.program_status.set(bit="C", value=(value == -1 and tmp_bit is True))
-        if value == Register.BOUND_PROPERTIES[(size, True)][1] and tmp_bit is True:
-            value = Register.BOUND_PROPERTIES[(size, True)][0]
+        if value == Register.BOUND_PROPERTIES[(self.size, True)][1] and tmp_bit is True:
+            value = Register.BOUND_PROPERTIES[(self.size, True)][0]
             self.program_status.set(bit="V", value=True)
         else:
             value += (0 if tmp_bit is False else 1)
@@ -554,47 +491,32 @@ class ADCCommand(SingleOperandCommand):
 
         self.program_status.set(bit="N", value=value < 0)
         self.program_status.set(bit="Z", value=value == 0)
-        self.dest_operand.inner_register.set(size=size, signed=True, value=value)
+        self.dest_operand.inner_register.set(size=self.size, signed=True, value=value)
 
 
 class SBCCommand(SingleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(SBCCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(SBCCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
         tmp_bit = self.program_status.get(bit="C")
-        value = self.dest_operand.inner_register.get(size=size, signed=True)
+        value = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
         self.program_status.set(bit="C", value=not (value == 0 and tmp_bit is True))
-        self.program_status.set(bit="V", value=value == Register.BOUND_PROPERTIES[(size, True)][0])
-        if value == Register.BOUND_PROPERTIES[(size, True)][0] and tmp_bit is True:
-            value = Register.BOUND_PROPERTIES[(size, True)][1]
+        self.program_status.set(bit="V", value=value == Register.BOUND_PROPERTIES[(self.size, True)][0])
+        if value == Register.BOUND_PROPERTIES[(self.size, True)][0] and tmp_bit is True:
+            value = Register.BOUND_PROPERTIES[(self.size, True)][1]
         else:
             value -= (0 if tmp_bit is False else 1)
 
         self.program_status.set(bit="N", value=value < 0)
         self.program_status.set(bit="Z", value=value == 0)
-        self.dest_operand.inner_register.set(size=size, signed=True, value=value)
+        self.dest_operand.inner_register.set(size=self.size, signed=True, value=value)
 
 
 class SXTCommand(SingleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(SXTCommand, self).__init__(dest_operand=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(SXTCommand, self).__init__(**kwargs)
 
     def execute(self):
         value = 0 if self.program_status.get(bit="N") is False else Register.BOUND_PROPERTIES[("word", False)][1]
@@ -604,59 +526,49 @@ class SXTCommand(SingleOperandCommand):
 
 
 class MOVCommand(DoubleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(MOVCommand, self).__init__(src_operand=Operand(reg=bitarray(matcher.group("srcreg"), endian='big'),
-                                                             mode=bitarray(matcher.group("srcmode"), endian='big')),
-                                         dest_pattern=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        size_store = "byte" if self.on_byte else "word"
-        if self.on_byte and self.dest_operand.mode == 0:
-            size_store = 'word'
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size=size_store)
+    def __init__(self, **kwargs):
+        super(MOVCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
+        size_exec = self.size
         if self.on_byte and self.dest_operand.mode == 0:
-            size = 'word'
-        value = self.src_operand.inner_register.get(size=size, signed=True)
+            size_exec = 'word'
+        value = self.src_operand.inner_register.get(size=size_exec, signed=True)
 
         self.program_status.set(bit="N", value=value < 0)
         self.program_status.set(bit="Z", value=value == 0)
         self.program_status.set(bit="V", value=False)
-        self.dest_operand.inner_register.set(size=size, signed=True, value=value)
+        self.dest_operand.inner_register.set(size=size_exec, signed=True, value=value)
+
+    def _add_all_operations(self):
+        size_store = self.size
+        if self.on_byte and self.dest_operand.mode == 0:
+            size_store = 'word'
+        self._add_decode()
+        self._add_fetch_operands(size=self.size)
+        self._add_execute(self.execute)
+        self._add_store_operands(size=size_store)
 
 
 class CMPCommand(DoubleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(CMPCommand, self).__init__(src_operand=Operand(reg=bitarray(matcher.group("srcreg"), endian='big'),
-                                                             mode=bitarray(matcher.group("srcmode"), endian='big')),
-                                         dest_pattern=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(CMPCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
         num_bytes = 1 if self.on_byte else 2
-        value_src = self.src_operand.inner_register.get(size=size, signed=True)
-        value_dest = self.dest_operand.inner_register.get(size=size, signed=True)
+        value_src = self.src_operand.inner_register.get(size=self.size, signed=True)
+        value_dest = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
         tmp = ~value_dest
-        tmp = int.from_bytes(tmp.to_bytes(num_bytes, byteorder='big', signed=True), byteorder='big', signed=False)
-        tmp += int.from_bytes(value_src.to_bytes(num_bytes, byteorder='big', signed=True), byteorder='big', signed=False)
+        tmp = int.from_bytes(tmp.to_bytes(num_bytes, byteorder='big', signed=True),
+                             byteorder='big', signed=False)
+        tmp += int.from_bytes(value_src.to_bytes(num_bytes, byteorder='big', signed=True),
+                              byteorder='big', signed=False)
         tmp += 1
-        self.program_status.set(bit="C", value=not (tmp > Register.BOUND_PROPERTIES[(size, False)][1]))
-        tmp %= (Register.BOUND_PROPERTIES[(size, False)][1] + 1)
-        tmp = int.from_bytes(tmp.to_bytes(num_bytes, byteorder='big', signed=False), byteorder='big', signed=True)
+        self.program_status.set(bit="C", value=not (tmp > Register.BOUND_PROPERTIES[(self.size, False)][1]))
+        tmp %= (Register.BOUND_PROPERTIES[(self.size, False)][1] + 1)
+        tmp = int.from_bytes(tmp.to_bytes(num_bytes, byteorder='big', signed=False),
+                             byteorder='big', signed=True)
 
         self.program_status.set(bit="V", value=value_dest ^ value_src < 0 and not value_dest ^ tmp < 0)
         self.program_status.set(bit="N", value=tmp < 0)
@@ -664,86 +576,62 @@ class CMPCommand(DoubleOperandCommand):
 
 
 class ADDCommand(DoubleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(ADDCommand, self).__init__(src_operand=Operand(reg=bitarray(matcher.group("srcreg"), endian='big'),
-                                                             mode=bitarray(matcher.group("srcmode"), endian='big')),
-                                         dest_pattern=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(ADDCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
         num_bytes = 1 if self.on_byte else 2
-        value_src = self.src_operand.inner_register.get(size=size, signed=True)
-        value_dest = self.dest_operand.inner_register.get(size=size, signed=True)
+        value_src = self.src_operand.inner_register.get(size=self.size, signed=True)
+        value_dest = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
-        tmp = int.from_bytes(value_dest.to_bytes(num_bytes, byteorder='big', signed=True), byteorder='big', signed=False)
-        tmp += int.from_bytes(value_src.to_bytes(num_bytes, byteorder='big', signed=True), byteorder='big', signed=False)
-        self.program_status.set(bit="C", value=(tmp > Register.BOUND_PROPERTIES[(size, False)][1]))
-        tmp %= (Register.BOUND_PROPERTIES[(size, False)][1] + 1)
-        tmp = int.from_bytes(tmp.to_bytes(num_bytes, byteorder='big', signed=False), byteorder='big', signed=True)
+        tmp = int.from_bytes(value_dest.to_bytes(num_bytes, byteorder='big', signed=True),
+                             byteorder='big', signed=False)
+        tmp += int.from_bytes(value_src.to_bytes(num_bytes, byteorder='big', signed=True),
+                              byteorder='big', signed=False)
+        self.program_status.set(bit="C", value=(tmp > Register.BOUND_PROPERTIES[(self.size, False)][1]))
+        tmp %= (Register.BOUND_PROPERTIES[(self.size, False)][1] + 1)
+        tmp = int.from_bytes(tmp.to_bytes(num_bytes, byteorder='big', signed=False),
+                             byteorder='big', signed=True)
 
         self.program_status.set(bit="V", value=not value_dest ^ value_src < 0 and value_src ^ tmp < 0)
         self.program_status.set(bit="N", value=tmp < 0)
         self.program_status.set(bit="Z", value=tmp == 0)
-        self.dest_operand.inner_register.set(size=size, signed=True, value=tmp)
+        self.dest_operand.inner_register.set(size=self.size, signed=True, value=tmp)
 
 
 class SUBCommand(DoubleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(SUBCommand, self).__init__(src_operand=Operand(reg=bitarray(matcher.group("srcreg"), endian='big'),
-                                                             mode=bitarray(matcher.group("srcmode"), endian='big')),
-                                         dest_pattern=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(SUBCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
         num_bytes = 1 if self.on_byte else 2
-        value_src = self.src_operand.inner_register.get(size=size, signed=True)
-        value_dest = self.dest_operand.inner_register.get(size=size, signed=True)
+        value_src = self.src_operand.inner_register.get(size=self.size, signed=True)
+        value_dest = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
         tmp = ~value_src
-        tmp = int.from_bytes(tmp.to_bytes(num_bytes, byteorder='big', signed=True), byteorder='big', signed=False)
-        tmp += int.from_bytes(value_dest.to_bytes(num_bytes, byteorder='big', signed=True), byteorder='big', signed=False)
+        tmp = int.from_bytes(tmp.to_bytes(num_bytes, byteorder='big', signed=True),
+                             byteorder='big', signed=False)
+        tmp += int.from_bytes(value_dest.to_bytes(num_bytes, byteorder='big', signed=True),
+                              byteorder='big', signed=False)
         tmp += 1
-        self.program_status.set(bit="C", value=not (tmp > Register.BOUND_PROPERTIES[(size, False)][1]))
-        tmp %= (Register.BOUND_PROPERTIES[(size, False)][1] + 1)
-        tmp = int.from_bytes(tmp.to_bytes(num_bytes, byteorder='big', signed=False), byteorder='big', signed=True)
+        self.program_status.set(bit="C", value=not (tmp > Register.BOUND_PROPERTIES[(self.size, False)][1]))
+        tmp %= (Register.BOUND_PROPERTIES[(self.size, False)][1] + 1)
+        tmp = int.from_bytes(tmp.to_bytes(num_bytes, byteorder='big', signed=False),
+                             byteorder='big', signed=True)
 
         self.program_status.set(bit="V", value=value_dest ^ value_src < 0 and not value_src ^ tmp < 0)
         self.program_status.set(bit="N", value=tmp < 0)
         self.program_status.set(bit="Z", value=tmp == 0)
-        self.dest_operand.inner_register.set(size=size, signed=True, value=tmp)
+        self.dest_operand.inner_register.set(size=self.size, signed=True, value=tmp)
 
 
 class BITCommand(DoubleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(BITCommand, self).__init__(src_operand=Operand(reg=bitarray(matcher.group("srcreg"), endian='big'),
-                                                             mode=bitarray(matcher.group("srcmode"), endian='big')),
-                                         dest_pattern=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(BITCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
-        value_src = self.src_operand.inner_register.get(size=size, signed=True)
-        value_dest = self.dest_operand.inner_register.get(size=size, signed=True)
+        value_src = self.src_operand.inner_register.get(size=self.size, signed=True)
+        value_dest = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
         tmp = value_src & value_dest
         self.program_status.set(bit="N", value=tmp < 0)
@@ -752,54 +640,34 @@ class BITCommand(DoubleOperandCommand):
 
 
 class BICCommand(DoubleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(BICCommand, self).__init__(src_operand=Operand(reg=bitarray(matcher.group("srcreg"), endian='big'),
-                                                             mode=bitarray(matcher.group("srcmode"), endian='big')),
-                                         dest_pattern=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(BICCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
-        value_src = self.src_operand.inner_register.get(size=size, signed=True)
-        value_dest = self.dest_operand.inner_register.get(size=size, signed=True)
+        value_src = self.src_operand.inner_register.get(size=self.size, signed=True)
+        value_dest = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
         tmp = ~value_src
         tmp = tmp & value_dest
         self.program_status.set(bit="N", value=tmp < 0)
         self.program_status.set(bit="Z", value=tmp == 0)
         self.program_status.set(bit="V", value=False)
-        self.dest_operand.inner_register.set(size=size, signed=True, value=tmp)
+        self.dest_operand.inner_register.set(size=self.size, signed=True, value=tmp)
 
 
 class BISCommand(DoubleOperandCommand):
-    def __init__(self, matcher, **kwargs):
-        super(BISCommand, self).__init__(src_operand=Operand(reg=bitarray(matcher.group("srcreg"), endian='big'),
-                                                             mode=bitarray(matcher.group("srcmode"), endian='big')),
-                                         dest_pattern=Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                                              mode=bitarray(matcher.group("destmode"), endian='big')),
-                                         **kwargs)
-
-        self._add_decode()
-        self._add_fetch_operands(size="byte" if self.on_byte else "word")
-        self._add_execute(self.execute)
-        self._add_store_operands(size="byte" if self.on_byte else "word")
+    def __init__(self, **kwargs):
+        super(BISCommand, self).__init__(**kwargs)
 
     def execute(self):
-        size = "byte" if self.on_byte else "word"
-        value_src = self.src_operand.inner_register.get(size=size, signed=True)
-        value_dest = self.dest_operand.inner_register.get(size=size, signed=True)
+        value_src = self.src_operand.inner_register.get(size=self.size, signed=True)
+        value_dest = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
         tmp = value_src | value_dest
         self.program_status.set(bit="N", value=tmp < 0)
         self.program_status.set(bit="Z", value=tmp == 0)
         self.program_status.set(bit="V", value=False)
-        self.dest_operand.inner_register.set(size=size, signed=True, value=tmp)
+        self.dest_operand.inner_register.set(size=self.size, signed=True, value=tmp)
 
 
 _COMM_PATTERN = r'(?P<{}>[01]{})'
@@ -830,11 +698,11 @@ class InstanceCommand(enum.Enum):
     BIT  = (_MSB_PATTERN + r'011'        + _SRC_PATTERN + _DEST_PATTERN, BITCommand,  "BIT")
     BIC  = (_MSB_PATTERN + r'100'        + _SRC_PATTERN + _DEST_PATTERN, BICCommand,  "BIC")
     BIS  = (_MSB_PATTERN + r'101'        + _SRC_PATTERN + _DEST_PATTERN, BISCommand,  "BIS")
-    MUL  = (               r'0111000'    + _REG_PATTERN + _SRC_PATTERN,  MULCommand,  "MUL")
-    DIV  = (               r'0111001'    + _REG_PATTERN + _SRC_PATTERN,  DIVCommand,  "DIV")
-    ASH  = (               r'0111010'    + _REG_PATTERN + _SRC_PATTERN,  ASHCommand,  "ASH")
-    ASHC = (               r'0111011'    + _REG_PATTERN + _SRC_PATTERN,  ASHCCommand, "ASHC")
-    XOR  = (               r'0111100'    + _REG_PATTERN + _SRC_PATTERN,  XORCommand,  "XOR")
+    #MUL  = (               r'0111000'    + _REG_PATTERN + _SRC_PATTERN,  MULCommand,  "MUL")
+    #DIV  = (               r'0111001'    + _REG_PATTERN + _SRC_PATTERN,  DIVCommand,  "DIV")
+    #ASH  = (               r'0111010'    + _REG_PATTERN + _SRC_PATTERN,  ASHCommand,  "ASH")
+    #ASHC = (               r'0111011'    + _REG_PATTERN + _SRC_PATTERN,  ASHCCommand, "ASHC")
+    #XOR  = (               r'0111100'    + _REG_PATTERN + _SRC_PATTERN,  XORCommand,  "XOR")
 
     def __init__(self, pattern, klass, representation: str):
         self._pattern = re.compile(pattern=pattern)
@@ -866,7 +734,7 @@ class Commands:
                 on_byte = False
                 if "msb" in matcher.groupdict():
                     on_byte = (matcher.group("msb") == "1")
-                return command_instance.klass(matcher, program_status=program_status,
-                                              type=command_instance, on_byte=on_byte)
+                return command_instance.klass(matcher=matcher, program_status=program_status,
+                                              type_=command_instance, on_byte=on_byte)
 
         raise UnknownCommand(code=code)
