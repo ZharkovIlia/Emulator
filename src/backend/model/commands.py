@@ -21,7 +21,6 @@ class Operation(enum.Enum):
     FETCH_ADDRESS           = enum.auto()
     STORE_REGISTER          = enum.auto()
     STORE_ADDRESS           = enum.auto()
-    DONE                    = enum.auto()
     INCREMENT_REGISTER      = enum.auto()
     DECREMENT_REGISTER      = enum.auto()
     BRANCH_IF               = enum.auto()
@@ -29,19 +28,17 @@ class Operation(enum.Enum):
 
 
 class Operand:
-    def __init__(self, reg: bitarray, mode: bitarray=None):
-        if reg.length() != 3 or (mode is not None and mode.length() != 3):
+    def __init__(self, reg: bitarray, mode: bitarray):
+        if reg.length() != 3 or mode.length() != 3:
             raise OperandWrongNumberOfBits()
 
         tmp = bitarray("00000", endian='big')
         tmp.extend(reg)
         self._reg = int.from_bytes(tmp.tobytes(), byteorder='big', signed=False)
 
-        self._mode = None
-        if mode is not None:
-            tmp = bitarray("00000", endian='big')
-            tmp.extend(mode)
-            self._mode = int.from_bytes(tmp.tobytes(), byteorder='big', signed=False)
+        tmp = bitarray("00000", endian='big')
+        tmp.extend(mode)
+        self._mode = int.from_bytes(tmp.tobytes(), byteorder='big', signed=False)
 
         if self._reg == 7 and self._mode not in (2, 3, 6, 7):
             raise OperandWrongPCMode()
@@ -258,10 +255,6 @@ class AbstractCommand:
         self._operations.append({"operation": Operation.EXECUTE,
                                  "callback": callback})
 
-    def _add_done(self):
-        self._operations.append({"operation": Operation.DONE,
-                                 "callback": None})
-
     def _add_fetch_operands(self, size: str):
         if self._src_operand is not None:
             self._src_operand.add_fetch(operations=self._operations, size=size)
@@ -375,6 +368,58 @@ class JMPCommand(AbstractCommand):
         self._add_decode()
         self._add_fetch_operands(size="word")
         self._add_jump()
+
+    def _add_jump(self):
+        self._operations.append({"operation": Operation.JUMP,
+                                 "address": lambda: self.dest_operand.inner_register.get(size="word", signed=False)})
+
+
+class JSRCommand(AbstractCommand):
+    def __init__(self, matcher, **kwargs):
+        super(JSRCommand, self).__init__(**kwargs)
+
+        dest_reg = bitarray(matcher.group("destreg"), endian='big')
+        dest_mode = bitarray(matcher.group("destmode"), endian='big')
+        self._src_reg = bitarray(matcher.group("reg"), endian='big')
+        if dest_mode.to01() == "000":
+            raise CommandJMPToRegister()
+        if self._src_reg.length() != 3:
+            raise OperandWrongNumberOfBits()
+
+        self._dest_operand = Operand(reg=dest_reg, mode=dest_mode)
+        self._dest_operand.do_not_fetch_operand = True
+
+        self._add_decode()
+        self._add_fetch_operands(size="word")
+        self._add_push_onto_stack()
+        self._add_mov_pc_to_reg()
+        self._add_jump()
+
+    def _add_push_onto_stack(self):
+        self._subcommand = Commands.get_command_by_code(code=bitarray("0001000" + self._src_reg.to01() + "100110"),
+                                                        program_status=ProgramStatus())
+        index_decode = None
+        for i, op in enumerate(self._subcommand._operations):
+            if op["operation"] == Operation.DECODE:
+                index_decode = i
+                break
+        self._subcommand._operations.pop(index_decode)
+        self._operations.extend(self._subcommand._operations)
+
+    def _add_mov_pc_to_reg(self):
+        self._tmp_pc = Register()
+        tmp = bitarray("00000", endian='big')
+        tmp.extend(self._src_reg)
+        self._reg_index = int.from_bytes(tmp.tobytes(), byteorder='big', signed=False)
+        self._operations.append({"operation": Operation.FETCH_REGISTER,
+                                 "register": 7,
+                                 "size": "word",
+                                 "callback": self._tmp_pc.set_word})
+
+        self._operations.append({"operation": Operation.STORE_REGISTER,
+                                 "register": self._reg_index,
+                                 "size": "word",
+                                 "value": lambda: self._tmp_pc.word()})
 
     def _add_jump(self):
         self._operations.append({"operation": Operation.JUMP,
@@ -936,6 +981,7 @@ class InstanceCommand(enum.Enum):
     BHI  = (               r'10000010'   + _OFFSET_PATTERN,              BHICommand,  "BHI",  False)
     BLOS = (               r'10000011'   + _OFFSET_PATTERN,              BLOSCommand, "BLOS", False)
     JMP  = (               r'0000000001' + _DEST_PATTERN,                JMPCommand,  "JMP",  False)
+    JSR  = (               r'0000100'    + _REG_PATTERN + _DEST_PATTERN, JSRCommand,  "JSR",  False)
 
     #BHIS = (               r'10000110'   + _OFFSET_PATTERN,              BHISCommand, "BHIS", False)
     #BLO  = (               r'10000111'   + _OFFSET_PATTERN,              BLOCommand,  "BLO",  False)

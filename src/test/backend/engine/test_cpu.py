@@ -560,6 +560,18 @@ class CPUTest(unittest.TestCase):
         self.cpu.execute_next()
         self.assertEqual(self.registers[7].word().to01(), "1000100010100100")
 
+    def test_jsr(self):
+        self.memory.store(address=256, size="word", mem=bitarray("0000100101001010"))
+        self.registers[2].set_word(value=bitarray("0001110010100100"))
+        self.registers[5].set_word(value=bitarray("1000100010100100"))
+        self.registers[6].set_word(value=bitarray("1111111111111110"))
+        self.cpu.execute_next()
+        self.assertEqual(self.registers[5].word().to01(), "0000000100000010")
+        self.assertEqual(self.registers[6].word().to01(), "1111111111111100")
+        self.assertEqual(self.registers[7].word().to01(), "0001110010100100")
+        self.assertEqual(self.memory.load(address=65532, size="word").to01(), "1000100010100100")
+
+
 
 if __name__ == "__main__":
     unittest.main()
