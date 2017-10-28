@@ -426,6 +426,37 @@ class JSRCommand(AbstractCommand):
                                  "address": lambda: self.dest_operand.inner_register.get(size="word", signed=False)})
 
 
+class RTSCommand(AbstractCommand):
+    def __init__(self, matcher, **kwargs):
+        super(RTSCommand, self).__init__(**kwargs)
+
+        self._src_reg = bitarray(matcher.group("reg"), endian='big')
+        if self._src_reg.length() != 3:
+            raise OperandWrongNumberOfBits()
+
+        self._src_operand = Operand(reg=self._src_reg, mode=bitarray("000", endian='big'))
+
+        self._add_decode()
+        self._add_fetch_operands(size="word")
+        self._add_jump()
+        self._add_pop_from_stack()
+
+    def _add_pop_from_stack(self):
+        self._subcommand = Commands.get_command_by_code(code=bitarray("0001"  + "010110000" + self._src_reg.to01()),
+                                                        program_status=ProgramStatus())
+        index_decode = None
+        for i, op in enumerate(self._subcommand._operations):
+            if op["operation"] == Operation.DECODE:
+                index_decode = i
+                break
+        self._subcommand._operations.pop(index_decode)
+        self._operations.extend(self._subcommand._operations)
+
+    def _add_jump(self):
+        self._operations.append({"operation": Operation.JUMP,
+                                 "address": lambda: self.src_operand.inner_register.get(size="word", signed=False)})
+
+
 class CLRCommand(SingleOperandCommand):
     def __init__(self, **kwargs):
         super(CLRCommand, self).__init__(**kwargs)
@@ -982,6 +1013,7 @@ class InstanceCommand(enum.Enum):
     BLOS = (               r'10000011'   + _OFFSET_PATTERN,              BLOSCommand, "BLOS", False)
     JMP  = (               r'0000000001' + _DEST_PATTERN,                JMPCommand,  "JMP",  False)
     JSR  = (               r'0000100'    + _REG_PATTERN + _DEST_PATTERN, JSRCommand,  "JSR",  False)
+    RTS  = (               r'0000000010000' + _REG_PATTERN,              RTSCommand,  "RTS",  False)
 
     #BHIS = (               r'10000110'   + _OFFSET_PATTERN,              BHISCommand, "BHIS", False)
     #BLO  = (               r'10000111'   + _OFFSET_PATTERN,              BLOCommand,  "BLO",  False)
