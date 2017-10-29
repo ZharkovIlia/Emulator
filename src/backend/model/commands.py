@@ -1,7 +1,7 @@
 import enum
 import re
 
-from src.backend.extra.exceptions import\
+from src.backend.utils.exceptions import\
     CommandWrongNumberBits,\
     UnknownCommand,\
     OperandWrongNumberOfBits,\
@@ -237,6 +237,15 @@ class AbstractCommand:
     @property
     def dest_stored(self):
         return self._type.dest_stored
+
+    @property
+    def num_next_instructions(self) -> int:
+        num = 0
+        if self.has_dest_operand and self.dest_operand.require_next_instruction:
+            num += 1
+        if self.has_src_operand and self.src_operand.require_next_instruction:
+            num += 1
+        return num
 
     def __iter__(self):
         self._cur_operation = 0

@@ -2,7 +2,7 @@ from bitarray import bitarray
 
 
 class EmulatorException(Exception):
-    def __init__(self, what):
+    def __init__(self, what: str):
         self.what = what
 
     def __str__(self):
@@ -12,6 +12,11 @@ class EmulatorException(Exception):
 class EmulatorOddBreakpoint(EmulatorException):
     def __init__(self):
         super(EmulatorOddBreakpoint, self).__init__("Tried to toggle breakpoint on odd address")
+
+
+class EmulatorWrongAddress(EmulatorException):
+    def __init__(self, address: int):
+        super(EmulatorWrongAddress, self).__init__(what="Address {} is wrong".format(address))
 
 
 class EmulatorBreakpointNotInROM(EmulatorException):
