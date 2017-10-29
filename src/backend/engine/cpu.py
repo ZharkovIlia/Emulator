@@ -47,7 +47,7 @@ class CPU:
                 reg.set_byte(value=op["value"]()) if op["size"] == "byte" else reg.set_word(value=op["value"]())
 
             elif optype is Operation.STORE_ADDRESS:
-                self._memory.store(address=op["address"](), size=op["size"], mem=op["value"]())
+                self._memory.store(address=op["address"](), size=op["size"], value=op["value"]())
 
             elif optype is Operation.BRANCH_IF:
                 if op["if"]():

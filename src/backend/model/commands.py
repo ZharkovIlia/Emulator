@@ -40,7 +40,7 @@ class Operand:
         tmp.extend(mode)
         self._mode = int.from_bytes(tmp.tobytes(), byteorder='big', signed=False)
 
-        if self._reg == 7 and self._mode not in (2, 3, 6, 7):
+        if self._reg == 7 and self._mode not in (0, 2, 3, 6, 7):
             raise OperandWrongPCMode()
 
         self._next_instruction = None
@@ -76,16 +76,18 @@ class Operand:
 
     @property
     def require_next_instruction(self) -> bool:
-        return self._reg == 7 or self._mode // 2 == 3
+        return (self._reg == 7 and self._mode != 0) or self._mode // 2 == 3
 
     @property
     def string_representation(self):
         result = ""
         if self._reg == 7:
-            if self._mode // 2 == 1:
-                result = "#{}"
+            if self._mode == 0:
+                result = "PC"
+            elif self._mode // 2 == 1:
+                result = "#{:o}"
             elif self._mode // 2 == 3:
-                result = "{}(PC)"
+                result = "{:o}(PC)"
             if self._mode % 2 == 1:
                 result = "@" + result
         else:
@@ -98,7 +100,7 @@ class Operand:
             elif self._mode // 2 == 2:
                 result = "-" + result
             elif self._mode // 2 == 3:
-                result = "{}" + result
+                result = "{:o}" + result
 
             if self._mode % 2 == 1 and self._mode != 1:
                 result = "@" + result
@@ -196,6 +198,8 @@ class AbstractCommand:
         self._size = 'byte' if self._on_byte else 'word'
         self._src_operand = None
         self._dest_operand = None
+        self._offset = None
+        self._number = None
         self._type = type_
 
     @property
@@ -219,12 +223,28 @@ class AbstractCommand:
         return self._dest_operand is not None
 
     @property
+    def has_offset(self):
+        return self._offset is not None
+
+    @property
+    def has_number(self):
+        return self._number
+
+    @property
     def src_operand(self):
         return self._src_operand
 
     @property
     def dest_operand(self):
         return self._dest_operand
+
+    @property
+    def offset(self):
+        return self._offset
+
+    @property
+    def number(self):
+        return self._number
 
     @property
     def type(self):
@@ -347,15 +367,9 @@ class BranchCommand(AbstractCommand):
         self._extract_offset()
         self._add_all_operations()
 
-    @property
-    def offset(self):
-        return self._offset
-
     def _extract_offset(self):
         self._offset = int.from_bytes(bitarray(self._matcher.group("offset"), endian='big').tobytes(),
                                       byteorder='big', signed=True)
-
-        self._offset *= 2
 
     def _add_all_operations(self):
         self._add_decode()
@@ -365,7 +379,7 @@ class BranchCommand(AbstractCommand):
     def _add_branch(self):
         self._operations.append({"operation": Operation.BRANCH_IF,
                                  "if": lambda: self._if_branch,
-                                 "offset": self._offset})
+                                 "offset": self._offset * 2})
 
     def execute(self):
         raise NotImplementedError()
@@ -416,22 +430,15 @@ class JSRCommand(AbstractCommand):
                                                                       endian='big'),
                                                         program_status=ProgramStatus(), add_decode=False)
 
+        self._src_operand = self._subcommand.src_operand
         self._operations.extend(self._subcommand._operations)
 
     def _add_mov_pc_to_reg(self):
-        self._tmp_pc = Register()
-        tmp = bitarray("00000", endian='big')
-        tmp.extend(self._src_reg)
-        self._reg_index = int.from_bytes(tmp.tobytes(), byteorder='big', signed=False)
-        self._operations.append({"operation": Operation.FETCH_REGISTER,
-                                 "register": 7,
-                                 "size": "word",
-                                 "callback": self._tmp_pc.set_word})
+        tmp_subcommand = Commands.get_command_by_code(code=bitarray("0001000111000" + self._src_reg.to01(),
+                                                                    endian="big"),
+                                                      program_status=ProgramStatus(), add_decode=False)
 
-        self._operations.append({"operation": Operation.STORE_REGISTER,
-                                 "register": self._reg_index,
-                                 "size": "word",
-                                 "value": lambda: self._tmp_pc.word()})
+        self._operations.extend(tmp_subcommand._operations)
 
     def _add_jump(self):
         self._operations.append({"operation": Operation.JUMP,
@@ -472,7 +479,6 @@ class MARKCommand(AbstractCommand):
         tmp = bitarray("00", endian='big')
         tmp.extend(bitarray(matcher.group("number"), endian='big'))
         self._number = int.from_bytes(tmp.tobytes(), byteorder='big', signed=False)
-        self._number *= 2
 
         self._add_decode()
         self._add_fetch_sp()
@@ -492,7 +498,7 @@ class MARKCommand(AbstractCommand):
     def _add_increment_sp(self):
         def callback():
             value = self._tmp_sp.get(size="word", signed=False)
-            self._tmp_sp.set(size="word", signed=False, value=value + self._number)
+            self._tmp_sp.set(size="word", signed=False, value=value + self._number * 2)
         self._operations.append({"operation": Operation.EXECUTE,
                                  "callback": callback})
 
@@ -1039,7 +1045,6 @@ class SOBCommand(BranchCommand):
         tmp = bitarray("00", endian='big')
         tmp.extend(bitarray(self._matcher.group("offset"), endian='big'))
         self._offset = int.from_bytes(tmp.tobytes(), byteorder='big', signed=False)
-        self._offset *= -2
         self._src_reg = bitarray(self._matcher.group("reg"), endian='big')
 
     def _add_all_operations(self):
@@ -1054,7 +1059,13 @@ class SOBCommand(BranchCommand):
                                                                       endian='big'),
                                                         program_status=self._inner_ps, add_decode=False)
 
+        self._dest_operand = self._subcommand.dest_operand
         self._operations.extend(self._subcommand._operations)
+
+    def _add_branch(self):
+        self._operations.append({"operation": Operation.BRANCH_IF,
+                                 "if": lambda: self._if_branch,
+                                 "offset": -2 * self._offset})
 
 
 _COMM_PATTERN = r'(?P<{}>[01]{})'

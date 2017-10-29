@@ -32,24 +32,24 @@ class Memory:
 
     def load(self, address: int, size: str) -> bitarray:
         Memory._check_arguments(address, size)
-        mem = bitarray(endian='big')
-        mem.frombytes(bytes(self._data[address: address+1]))
+        value = bitarray(endian='big')
+        value.frombytes(bytes(self._data[address: address+1]))
         if size == 'word':
             tmp = bitarray(endian='big')
             tmp.frombytes(bytes(self._data[address+1: address+2]))
-            tmp.extend(mem)
-            mem = tmp
-        return mem
+            tmp.extend(value)
+            value = tmp
+        return value
 
-    def store(self, address: int, size: str, mem: bitarray) -> None:
+    def store(self, address: int, size: str, value: bitarray) -> None:
         Memory._check_arguments(address, size)
         num_bytes = 1 if size == 'byte' else 2
-        if mem.length() != num_bytes * 8:
+        if value.length() != num_bytes * 8:
             raise MemoryException(what="num of stored bits doesn't correspond to predefined size")
 
-        self._data[address: address+1] = mem[mem.length()-8: mem.length()].tobytes()
+        self._data[address: address+1] = value[value.length() - 8: value.length()].tobytes()
         if num_bytes == 2:
-            self._data[address+1: address+2] = mem[0: 8].tobytes()
+            self._data[address+1: address+2] = value[0: 8].tobytes()
 
     @staticmethod
     def _check_arguments(address: int, size: str):
