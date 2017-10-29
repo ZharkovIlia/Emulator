@@ -50,7 +50,7 @@ class Emulator:
     def code(self, address: int) -> str:
         if address % 2 == 1 or address < 0 or address >= Memory.SIZE:
             raise EmulatorWrongAddress(address)
-        return "0{:o}".format(self._memory.load(size="word", address=address))
+        return "0{:o}".format(int(self._memory.load(size="word", address=address).to01(), 2))
 
     def disasm(self, address: int) -> (str, bool):
         if address % 2 == 1 or address < 0 or address >= Memory.SIZE:
