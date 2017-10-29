@@ -51,8 +51,7 @@ class CPU:
 
             elif optype is Operation.BRANCH_IF:
                 if op["if"]():
-                    pc_value = self._registers[7].get(size="word", signed=False)
-                    self._registers[7].set(size="word", signed=False, value=pc_value + op["offset"])
+                    self._registers[7].inc(value=op["offset"])
 
             elif optype is Operation.JUMP:
                 self._registers[7].set(size="word", signed=False, value=op["address"]())

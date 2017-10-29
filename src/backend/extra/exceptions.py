@@ -55,6 +55,12 @@ class RegisterOddValue(RegisterException):
         super(RegisterOddValue, self).__init__("Tried to set odd value to SP or PC")
 
 
+class StackOverflow(RegisterException):
+    def __init__(self, sp):
+        super(StackOverflow, self).__init__(what="Stack pointer is out of bounds")
+        self.sp = sp
+
+
 class ProgramStatusException(EmulatorException):
     def __init__(self, what: str):
         super(ProgramStatusException, self).__init__(what)

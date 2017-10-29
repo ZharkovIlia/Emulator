@@ -109,7 +109,7 @@ class Operand:
 
     def add_fetch(self, operations: list, size: str):
         if self._mode // 2 == 2:
-            value = 1 if self._mode == 4 and size == "byte" else 2
+            value = 1 if self._mode == 4 and size == "byte" and self._reg not in (6, 7) else 2
             operations.append({"operation": Operation.DECREMENT_REGISTER,
                                "register": self._reg,
                                "value": value})
@@ -131,7 +131,7 @@ class Operand:
             return
 
         if self._mode // 2 == 1:
-            value = 1 if self._mode == 2 and size == "byte" else 2
+            value = 1 if self._mode == 2 and size == "byte" and self._reg not in (6, 7) else 2
             operations.append({"operation": Operation.INCREMENT_REGISTER,
                                "register": self._reg,
                                "value": value})
@@ -185,13 +185,14 @@ class Operand:
 
 
 class AbstractCommand:
-    def __init__(self, program_status: ProgramStatus, type_, on_byte: bool):
+    def __init__(self, program_status: ProgramStatus, type_, on_byte: bool, add_decode=True):
         self._program_status = program_status
         self._cur_operation = 0
         self._operations = []
 
         self._string_representation = type_.string_representation + ("B" if on_byte else "")
         self._on_byte = on_byte
+        self._decode = add_decode
         self._size = 'byte' if self._on_byte else 'word'
         self._src_operand = None
         self._dest_operand = None
@@ -248,8 +249,9 @@ class AbstractCommand:
         raise StopIteration()
 
     def _add_decode(self):
-        self._operations.append({"operation": Operation.DECODE,
-                                 "callback": None})
+        if self._decode:
+            self._operations.append({"operation": Operation.DECODE,
+                                     "callback": None})
 
     def _add_execute(self, callback):
         self._operations.append({"operation": Operation.EXECUTE,
@@ -330,16 +332,21 @@ class RegisterSourceCommand(AbstractCommand):
 class BranchCommand(AbstractCommand):
     def __init__(self, matcher, **kwargs):
         super(BranchCommand, self).__init__(**kwargs)
-        self._offset = int.from_bytes(bitarray(matcher.group("offset"), endian='big').tobytes(),
-                                      byteorder='big', signed=True)
-        self._offset *= 2
+        self._matcher = matcher
         self._if_branch = False
 
+        self._extract_offset()
         self._add_all_operations()
 
     @property
     def offset(self):
         return self._offset
+
+    def _extract_offset(self):
+        self._offset = int.from_bytes(bitarray(self._matcher.group("offset"), endian='big').tobytes(),
+                                      byteorder='big', signed=True)
+
+        self._offset *= 2
 
     def _add_all_operations(self):
         self._add_decode()
@@ -396,14 +403,10 @@ class JSRCommand(AbstractCommand):
         self._add_jump()
 
     def _add_push_onto_stack(self):
-        self._subcommand = Commands.get_command_by_code(code=bitarray("0001000" + self._src_reg.to01() + "100110"),
-                                                        program_status=ProgramStatus())
-        index_decode = None
-        for i, op in enumerate(self._subcommand._operations):
-            if op["operation"] == Operation.DECODE:
-                index_decode = i
-                break
-        self._subcommand._operations.pop(index_decode)
+        self._subcommand = Commands.get_command_by_code(code=bitarray("0001000" + self._src_reg.to01() + "100110",
+                                                                      endian='big'),
+                                                        program_status=ProgramStatus(), add_decode=False)
+
         self._operations.extend(self._subcommand._operations)
 
     def _add_mov_pc_to_reg(self):
@@ -442,19 +445,70 @@ class RTSCommand(AbstractCommand):
         self._add_pop_from_stack()
 
     def _add_pop_from_stack(self):
-        self._subcommand = Commands.get_command_by_code(code=bitarray("0001"  + "010110000" + self._src_reg.to01()),
-                                                        program_status=ProgramStatus())
-        index_decode = None
-        for i, op in enumerate(self._subcommand._operations):
-            if op["operation"] == Operation.DECODE:
-                index_decode = i
-                break
-        self._subcommand._operations.pop(index_decode)
+        self._subcommand = Commands.get_command_by_code(code=bitarray("0001"  + "010110000" + self._src_reg.to01(),
+                                                                      endian='big'),
+                                                        program_status=ProgramStatus(), add_decode=False)
+
         self._operations.extend(self._subcommand._operations)
 
     def _add_jump(self):
         self._operations.append({"operation": Operation.JUMP,
                                  "address": lambda: self.src_operand.inner_register.get(size="word", signed=False)})
+
+
+class MARKCommand(AbstractCommand):
+    def __init__(self, matcher, **kwargs):
+        super(MARKCommand, self).__init__(**kwargs)
+
+        tmp = bitarray("00", endian='big')
+        tmp.extend(bitarray(matcher.group("number"), endian='big'))
+        self._number = int.from_bytes(tmp.tobytes(), byteorder='big', signed=False)
+        self._number *= 2
+
+        self._add_decode()
+        self._add_fetch_sp()
+        self._add_increment_sp()
+        self._add_store_sp()
+        self._add_fetch_r5()
+        self._add_jump()
+        self._add_pop_from_stack()
+
+    def _add_fetch_sp(self):
+        self._tmp_sp = Register()
+        self._operations.append({"operation": Operation.FETCH_REGISTER,
+                                 "register": 6,
+                                 "size": "word",
+                                 "callback": self._tmp_sp.set_word})
+
+    def _add_increment_sp(self):
+        def callback():
+            value = self._tmp_sp.get(size="word", signed=False)
+            self._tmp_sp.set(size="word", signed=False, value=value + self._number)
+        self._operations.append({"operation": Operation.EXECUTE,
+                                 "callback": callback})
+
+    def _add_store_sp(self):
+        self._operations.append({"operation": Operation.STORE_REGISTER,
+                                 "register": 6,
+                                 "size": "word",
+                                 "value": lambda: self._tmp_sp.word()})
+
+    def _add_fetch_r5(self):
+        self._tmp_r5 = Register()
+        self._operations.append({"operation": Operation.FETCH_REGISTER,
+                                 "register": 5,
+                                 "size": "word",
+                                 "callback": self._tmp_r5.set_word})
+
+    def _add_jump(self):
+        self._operations.append({"operation": Operation.JUMP,
+                                 "address": lambda: self._tmp_r5.get(size="word", signed=False)})
+
+    def _add_pop_from_stack(self):
+        self._subcommand = Commands.get_command_by_code(code=bitarray("0001"  + "010110000101", endian='big'),
+                                                        program_status=ProgramStatus(), add_decode=False)
+
+        self._operations.extend(self._subcommand._operations)
 
 
 class CLRCommand(SingleOperandCommand):
@@ -965,12 +1019,43 @@ class BLOSCommand(BranchCommand):
         self._if_branch = self.program_status.get(bit="C") or self.program_status.get(bit="Z")
 
 
+class SOBCommand(BranchCommand):
+    def __init__(self, **kwargs):
+        super(SOBCommand, self).__init__(**kwargs)
+
+    def execute(self):
+        self._if_branch = self._inner_ps.get(bit='Z') is True
+
+    def _extract_offset(self):
+        tmp = bitarray("00", endian='big')
+        tmp.extend(bitarray(self._matcher.group("offset"), endian='big'))
+        self._offset = int.from_bytes(tmp.tobytes(), byteorder='big', signed=False)
+        self._offset *= -2
+        self._src_reg = bitarray(self._matcher.group("reg"), endian='big')
+
+    def _add_all_operations(self):
+        self._add_decode()
+        self._add_decrement()
+        self._add_execute(self.execute)
+        self._add_branch()
+
+    def _add_decrement(self):
+        self._inner_ps = ProgramStatus()
+        self._subcommand = Commands.get_command_by_code(code=bitarray("0000101011000" + self._src_reg.to01(),
+                                                                      endian='big'),
+                                                        program_status=self._inner_ps, add_decode=False)
+
+        self._operations.extend(self._subcommand._operations)
+
+
 _COMM_PATTERN = r'(?P<{}>[01]{})'
 _MSB_PATTERN = r'(?P<msb>0|1)'
 _SRC_PATTERN = _COMM_PATTERN.format("srcmode", "{3}") + _COMM_PATTERN.format("srcreg", "{3}")
 _DEST_PATTERN = _COMM_PATTERN.format("destmode", "{3}") + _COMM_PATTERN.format("destreg", "{3}")
 _REG_PATTERN = _COMM_PATTERN.format("reg", "{3}")
 _OFFSET_PATTERN = _COMM_PATTERN.format("offset", "{8}")
+_NUMBER_PATTERN = _COMM_PATTERN.format("number", "{6}")
+_SOB_OFFSET_PTRN = _COMM_PATTERN.format("offset", "{6}")
 
 
 class InstanceCommand(enum.Enum):
@@ -1014,6 +1099,8 @@ class InstanceCommand(enum.Enum):
     JMP  = (               r'0000000001' + _DEST_PATTERN,                JMPCommand,  "JMP",  False)
     JSR  = (               r'0000100'    + _REG_PATTERN + _DEST_PATTERN, JSRCommand,  "JSR",  False)
     RTS  = (               r'0000000010000' + _REG_PATTERN,              RTSCommand,  "RTS",  False)
+    MARK = (               r'0000110100' + _NUMBER_PATTERN,              MARKCommand, "MARK", False)
+    SOB  = (               r'0111111' + _REG_PATTERN + _SOB_OFFSET_PTRN, SOBCommand,  "SOB", False)
 
     #BHIS = (               r'10000110'   + _OFFSET_PATTERN,              BHISCommand, "BHIS", False)
     #BLO  = (               r'10000111'   + _OFFSET_PATTERN,              BLOCommand,  "BLO",  False)
@@ -1047,7 +1134,7 @@ class InstanceCommand(enum.Enum):
 
 class Commands:
     @staticmethod
-    def get_command_by_code(code: bitarray, program_status: ProgramStatus) -> AbstractCommand:
+    def get_command_by_code(code: bitarray, program_status: ProgramStatus, add_decode=True) -> AbstractCommand:
         if code.length() != 16:
             raise CommandWrongNumberBits()
 
@@ -1058,6 +1145,6 @@ class Commands:
                 if "msb" in matcher.groupdict():
                     on_byte = (matcher.group("msb") == "1")
                 return command_instance.klass(matcher=matcher, program_status=program_status,
-                                              type_=command_instance, on_byte=on_byte)
+                                              type_=command_instance, on_byte=on_byte, add_decode=add_decode)
 
         raise UnknownCommand(code=code)
