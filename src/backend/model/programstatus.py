@@ -1,4 +1,4 @@
-from src.backend.extra.exceptions import ProgramStatusException
+from src.backend.utils.exceptions import ProgramStatusException
 
 
 class ProgramStatus:

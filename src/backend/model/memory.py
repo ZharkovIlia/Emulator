@@ -1,4 +1,4 @@
-from src.backend.extra.exceptions import MemoryException, MemoryIndexOutOfBound, MemoryOddAddressing
+from src.backend.utils.exceptions import MemoryException, MemoryIndexOutOfBound, MemoryOddAddressing
 from bitarray import bitarray
 import enum
 
@@ -22,6 +22,10 @@ class Memory:
         @property
         def end(self):
             return self._end
+
+        @property
+        def size(self):
+            return self._end - self._start
 
     def __init__(self):
         self._data = bytearray(0 for _ in range(0, Memory.SIZE))

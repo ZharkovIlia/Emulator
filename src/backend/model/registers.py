@@ -1,4 +1,4 @@
-from src.backend.extra.exceptions import \
+from src.backend.utils.exceptions import \
     RegisterOutOfBound, \
     RegisterWrongNumberBits, \
     RegisterException, \
