@@ -36,21 +36,12 @@ class MainWindow(QWidget):
         choose_address.addWidget(self.performance_box, 1, 3)
         choose_address.addWidget(self.get_button, 1, 4)
 
-        instruction_label = QLabel('Instruction')
-        self.instruction_string = QLineEdit()
-        self.instruction_string.setReadOnly(True)
-
-        show_address = QHBoxLayout()
-        show_address.addWidget(instruction_label)
-        show_address.addWidget(self.instruction_string)
-
-        self.breakpoint_table = BreakpointsView(self.emulator, 10)
+        self.breakpoint_table = BreakpointsView(self.emulator, 10, self.performance_box.currentIndex())
 
         self.editor_layout = QVBoxLayout()
         self.editor_layout.setAlignment(Qt.AlignTop)
         self.editor_layout.addWidget(self.address_description)
         self.editor_layout.addLayout(choose_address)
-        self.editor_layout.addLayout(show_address)
         self.editor_layout.addWidget(self.breakpoint_table)
 
         self.address_description.hide()
@@ -73,27 +64,17 @@ class MainWindow(QWidget):
             if address % 2 == 1:
                 address -= 1
 
-            try:
-                if self.performance_box.currentIndex() == 0:
-                    data_string = self.emulator.code(address)
-                    self.instruction_string.setText(data_string)
-                    self.address_description.hide()
-                else:
-                    data_string, _ = self.emulator.disasm(address)
-                    self.instruction_string.setText(data_string)
-                    self.address_description.hide()
+            self.breakpoint_table.fill(address, self.performance_box.currentIndex())
+            self.address_description.hide()
 
-                self.breakpoint_table.fill(address)
-
-            except EmulatorWrongAddress as err:
-                error_text = "\n\nType NON_NEGATIVE number LESS than " + oct(Memory.SIZE)
-                QMessageBox.warning(self, 'Error',
-                                    err.__str__() + error_text,
-                                    QMessageBox.Ok,
-                                    QMessageBox.Ok)
         except ValueError:
             self.address_description.show()
-
+        except EmulatorWrongAddress as err:
+            error_text = "\n\nType NON_NEGATIVE number LESS than " + oct(Memory.SIZE)
+            QMessageBox.warning(self, 'Error',
+                                err.__str__() + error_text,
+                                QMessageBox.Ok,
+                                QMessageBox.Ok)
 
 app = QApplication(sys.argv)
 window = MainWindow()

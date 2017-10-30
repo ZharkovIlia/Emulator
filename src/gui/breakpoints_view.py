@@ -35,22 +35,23 @@ class BreakpointsView(QWidget):
         one.point.setEnabled(another.point.isEnabled())
         one.point.setChecked(another.point.isChecked())
 
-    def __init__(self, emu: Emulator, lines: int):
+    def __init__(self, emu: Emulator, lines: int, format_index: int):
         super().__init__()
         self.emu = emu
         self.lines = lines
+        self.format_index = format_index
         self.initUI()
 
     def initUI(self):
-        wight = len(oct(Memory.SIZE))
-        self.add_format = '#0{}o'.format(wight)
-        self.line_wigets = list(self.BreakpointLine(self.emu, "", "")
-                                for _ in range(self.lines))
-        self.fill(0)
+        wight = len(oct(Memory.SIZE)) -2
+        self.add_format = '0{}o'.format(wight)
+        self.line_widgets = list(self.BreakpointLine(self.emu, "", "")
+                                 for _ in range(self.lines))
+        self.fill(0, self.format_index)
         lay = QVBoxLayout()
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
-        for line in self.line_wigets:
+        for line in self.line_widgets:
             lay.addWidget(line)
 
         up = QPushButton("up")
@@ -72,42 +73,58 @@ class BreakpointsView(QWidget):
         self.setLayout(wrap)
         self.show()
 
-    def fill(self, address):
+    def fill(self, address, format_index):
+        self.format_index = format_index
         for i in range(self.lines):
             add = address + i * 2
-            data, breakpoint = self.emu.disasm(add)
 
-            self.line_wigets[i].address.setText(format(add, self.add_format))
-            self.line_wigets[i].data.setText(data)
-            self.change_box(self.line_wigets[i].point, data, breakpoint)
+            if self.format_index == 0:
+                data, breakpoint = self.emu.code(add)
+            else:
+                data, breakpoint = self.emu.disasm(add)
+
+            self.line_widgets[i].address.setText(format(add, self.add_format))
+            self.line_widgets[i].data.setText(data)
+            self.change_box(self.line_widgets[i].point, data, breakpoint)
 
     def move_down(self):
-        add = int(self.line_wigets[self.lines - 1].address.text(), 8) + 2
+        add = int(self.line_widgets[self.lines - 1].address.text(), 8) + 2
         if add < 0 or add >= Memory.SIZE:
             return
 
-        data, breakpoint = self.emu.disasm(add)
-        for i in range(self.lines - 1):
-            self.assign_line(self.line_wigets[i], self.line_wigets[i + 1])
+        if self.format_index == 0:
+            data, breakpoint = self.emu.code(add)
+        else:
+            data, breakpoint = self.emu.disasm(add)
 
-        self.line_wigets[self.lines - 1].address.setText(format(add, self.add_format))
-        self.line_wigets[self.lines - 1].data.setText(data)
-        self.change_box(self.line_wigets[self.lines - 1].point, data, breakpoint)
+        for i in range(self.lines - 1):
+            self.assign_line(self.line_widgets[i], self.line_widgets[i + 1])
+
+        self.line_widgets[self.lines - 1].address.setText(format(add, self.add_format))
+        self.line_widgets[self.lines - 1].data.setText(data)
+        self.change_box(self.line_widgets[self.lines - 1].point, data, breakpoint)
 
     def move_up(self):
-        add = int(self.line_wigets[0].address.text(), 8) - 2
+        add = int(self.line_widgets[0].address.text(), 8) - 2
         if add < 0 or add >= Memory.SIZE:
             return
-        data, breakpoint = self.emu.disasm(add)
-        for i in range(self.lines - 1, -1, -1):
-            self.assign_line(self.line_wigets[i], self.line_wigets[i - 1])
 
-        self.line_wigets[0].address.setText(format(add, self.add_format))
-        self.line_wigets[0].data.setText(data)
-        self.change_box(self.line_wigets[0].point, data, breakpoint)
+        if self.format_index == 0:
+            data, breakpoint = self.emu.code(add)
+        else:
+            data, breakpoint = self.emu.disasm(add)
+
+        for i in range(self.lines - 1, 0, -1):
+            self.assign_line(self.line_widgets[i], self.line_widgets[i - 1])
+
+        self.line_widgets[0].address.setText(format(add, self.add_format))
+        self.line_widgets[0].data.setText(data)
+        self.change_box(self.line_widgets[0].point, data, breakpoint)
 
     def change_box(self, point: QCheckBox, data: str, breakpoint: bool):
-        if data != "Not an instruction":
+        if self.format_index == 0:
+            point.setEnabled(False)
+        elif data != "Not an instruction" and data is not None:
             point.setEnabled(True)
         else:
             point.setEnabled(False)
