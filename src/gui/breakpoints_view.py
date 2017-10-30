@@ -1,5 +1,6 @@
 from src.backend.engine.emulator import Emulator
 from src.backend.model.memory import Memory
+from src.backend.utils.disasm_instruction import DisasmInstruction, DisasmState
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
 
@@ -45,11 +46,11 @@ class BreakpointsView(QWidget):
         one.point.setEnabled(another.point.isEnabled())
         one.point.setChecked(another.point.isChecked())
 
-    def __init__(self, emu: Emulator, lines: int, format_index: int):
+    def __init__(self, emu: Emulator, lines: int, format_str: str):
         super().__init__()
         self.emu = emu
         self.lines = lines
-        self.format_index = format_index
+        self.format_str = format_str
         self.initUI()
 
     def initUI(self):
@@ -57,7 +58,7 @@ class BreakpointsView(QWidget):
         self.add_format = '0{}o'.format(width)
         self.line_widgets = list(self.BreakpointLine(self.emu, "", "")
                                  for _ in range(self.lines))
-        self.fill(0, self.format_index)
+        self.fill(self.emu.current_pc, self.format_str)
         lay = QVBoxLayout()
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
@@ -83,60 +84,30 @@ class BreakpointsView(QWidget):
         self.setLayout(wrap)
         self.show()
 
-    def fill(self, address, format_index):
-        self.format_index = format_index
+    def fill(self, address, format_str):
+        self.format_str = format_str
+
+        data_list = self.emu.disasm(address, self.lines, format_str)
         for i in range(self.lines):
-            add = address + i * 2
-
-            if self.format_index == 0:
-                data, breakpoint = self.emu.code(add)
-            else:
-                data, breakpoint = self.emu.disasm(add)
-
+            add, data, breakpoint = data_list[i]
             self.line_widgets[i].address.setText(format(add, self.add_format))
-            self.line_widgets[i].data.setText(data)
+            self.line_widgets[i].data.setText(str(data))
             self.change_box(self.line_widgets[i].point, data, breakpoint)
 
     def move_down(self):
-        add = int(self.line_widgets[self.lines - 1].address.text(), 8) + 2
-        if add < 0 or add >= Memory.SIZE:
-            return
-
-        if self.format_index == 0:
-            data, breakpoint = self.emu.code(add)
-        else:
-            data, breakpoint = self.emu.disasm(add)
-
-        for i in range(self.lines - 1):
-            self.assign_line(self.line_widgets[i], self.line_widgets[i + 1])
-
-        self.line_widgets[self.lines - 1].address.setText(format(add, self.add_format))
-        self.line_widgets[self.lines - 1].data.setText(data)
-        self.change_box(self.line_widgets[self.lines - 1].point, data, breakpoint)
+        add = int(self.line_widgets[1].address.text(), 8)
+        self.fill(add, self.format_str)
 
     def move_up(self):
         add = int(self.line_widgets[0].address.text(), 8) - 2
-        if add < 0 or add >= Memory.SIZE:
+        if add < 0:
             return
+        self.fill(add, self.format_str)
 
-        if self.format_index == 0:
-            data, breakpoint = self.emu.code(add)
-        else:
-            data, breakpoint = self.emu.disasm(add)
-
-        for i in range(self.lines - 1, 0, -1):
-            self.assign_line(self.line_widgets[i], self.line_widgets[i - 1])
-
-        self.line_widgets[0].address.setText(format(add, self.add_format))
-        self.line_widgets[0].data.setText(data)
-        self.change_box(self.line_widgets[0].point, data, breakpoint)
-
-    def change_box(self, point: QCheckBox, data: str, breakpoint: bool):
-        if self.format_index == 0:
+    def change_box(self, point: QCheckBox, data: DisasmInstruction, breakpoint: bool):
+        if data.state is DisasmState.NOT_AN_INSTRUCTION:
             point.setEnabled(False)
-        elif data != "Not an instruction" and data is not None:
+        else:
             point.setEnabled(True)
-        else:
-            point.setEnabled(False)
+
         point.setChecked(breakpoint)
-        #point.setChecked(True)

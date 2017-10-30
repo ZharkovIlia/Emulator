@@ -18,13 +18,13 @@ class MainWindow(QWidget):
 
     def initUI(self):
         address_label = QLabel('Address')
-        self.address_editor = QLineEdit()
+        self.address_editor = QLineEdit(format(self.emulator.current_pc, 'o'))
         self.address_description = QLabel("Please, type address in OCTAL format")
         self.address_description.setStyleSheet("color: red")
 
-        performance_label = QLabel('Performance')
-        self.performance_box = QComboBox()
-        self.performance_box.addItems(['data', 'instruction'])
+        format_label = QLabel('Data type')
+        self.format_box = QComboBox()
+        self.format_box.addItems(['octal', 'instructions'])
 
         self.get_button = QPushButton('get', self)
         self.get_button.clicked.connect(self.get_address)
@@ -32,11 +32,11 @@ class MainWindow(QWidget):
         choose_address = QGridLayout()
         choose_address.addWidget(address_label, 1, 0)
         choose_address.addWidget(self.address_editor, 1, 1)
-        choose_address.addWidget(performance_label, 1, 2)
-        choose_address.addWidget(self.performance_box, 1, 3)
+        choose_address.addWidget(format_label, 1, 2)
+        choose_address.addWidget(self.format_box, 1, 3)
         choose_address.addWidget(self.get_button, 1, 4)
 
-        self.breakpoint_table = BreakpointsView(self.emulator, 10, self.performance_box.currentIndex())
+        self.breakpoint_table = BreakpointsView(self.emulator, 10, self.format_box.currentText())
 
         self.editor_layout = QVBoxLayout()
         self.editor_layout.setAlignment(Qt.AlignTop)
@@ -64,7 +64,7 @@ class MainWindow(QWidget):
             if address % 2 == 1:
                 address -= 1
 
-            self.breakpoint_table.fill(address, self.performance_box.currentIndex())
+            self.breakpoint_table.fill(address, self.format_box.currentText())
             self.address_description.hide()
 
         except ValueError:
