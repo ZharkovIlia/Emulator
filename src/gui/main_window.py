@@ -1,6 +1,7 @@
 from src.backend.engine.emulator import Emulator
 from src.backend.model.memory import Memory
 from src.backend.utils.exceptions import *
+from src.gui.breakpoints_view import BreakpointsView
 
 import sys
 
@@ -43,11 +44,14 @@ class MainWindow(QWidget):
         show_address.addWidget(instruction_label)
         show_address.addWidget(self.instruction_string)
 
+        self.breakpoint_table = BreakpointsView(self.emulator, 10)
+
         self.editor_layout = QVBoxLayout()
         self.editor_layout.setAlignment(Qt.AlignTop)
         self.editor_layout.addWidget(self.address_description)
         self.editor_layout.addLayout(choose_address)
         self.editor_layout.addLayout(show_address)
+        self.editor_layout.addWidget(self.breakpoint_table)
 
         self.address_description.hide()
 
@@ -78,6 +82,8 @@ class MainWindow(QWidget):
                     data_string, _ = self.emulator.disasm(address)
                     self.instruction_string.setText(data_string)
                     self.address_description.hide()
+
+                self.breakpoint_table.fill(address)
 
             except EmulatorWrongAddress as err:
                 error_text = "\n\nType NON_NEGATIVE number less than " + oct(Memory.SIZE)
