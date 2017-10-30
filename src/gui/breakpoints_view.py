@@ -1,9 +1,7 @@
-from PyQt5.QtGui import *
 from src.backend.engine.emulator import Emulator
 from src.backend.model.memory import Memory
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
-import sys
 
 
 class BreakpointsView(QWidget):
@@ -30,6 +28,12 @@ class BreakpointsView(QWidget):
 
         def send_breakpoint(self, state):
             self.emu.toggle_breakpoint(int(self.address.text(), 8))
+
+    def assign_line(self, one: BreakpointLine, another: BreakpointLine):
+        one.address.setText(another.address.text())
+        one.data.setText(another.data.text())
+        one.point.setEnabled(another.point.isEnabled())
+        one.point.setChecked(another.point.isChecked())
 
     def __init__(self, emu: Emulator, lines: int):
         super().__init__()
@@ -84,14 +88,10 @@ class BreakpointsView(QWidget):
 
         data, breakpoint = self.emu.disasm(add)
         for i in range(self.lines - 1):
-            self.line_wigets[i].address.setText(self.line_wigets[i + 1].address.text())
-            self.line_wigets[i].data.setText(self.line_wigets[i + 1].data.text())
-            self.line_wigets[i].point.setEnabled(self.line_wigets[i + 1].point.isEnabled())
-            self.line_wigets[i].point.setChecked(self.line_wigets[i + 1].point.isChecked())
+            self.assign_line(self.line_wigets[i], self.line_wigets[i + 1])
 
         self.line_wigets[self.lines - 1].address.setText(format(add, self.add_format))
         self.line_wigets[self.lines - 1].data.setText(data)
-
         self.change_box(self.line_wigets[self.lines - 1].point, data, breakpoint)
 
     def move_up(self):
@@ -100,14 +100,10 @@ class BreakpointsView(QWidget):
             return
         data, breakpoint = self.emu.disasm(add)
         for i in range(self.lines - 1, -1, -1):
-            self.line_wigets[i].address.setText(self.line_wigets[i - 1].address.text())
-            self.line_wigets[i].data.setText(self.line_wigets[i - 1].data.text())
-            self.line_wigets[i].point.setEnabled(self.line_wigets[i - 1].point.isEnabled())
-            self.line_wigets[i].point.setChecked(self.line_wigets[i - 1].point.isChecked())
+            self.assign_line(self.line_wigets[i], self.line_wigets[i - 1])
 
         self.line_wigets[0].address.setText(format(add, self.add_format))
         self.line_wigets[0].data.setText(data)
-        
         self.change_box(self.line_wigets[0].point, data, breakpoint)
 
     def change_box(self, point: QCheckBox, data: str, breakpoint: bool):

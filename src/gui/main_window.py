@@ -86,7 +86,7 @@ class MainWindow(QWidget):
                 self.breakpoint_table.fill(address)
 
             except EmulatorWrongAddress as err:
-                error_text = "\n\nType NON_NEGATIVE number less than " + oct(Memory.SIZE)
+                error_text = "\n\nType NON_NEGATIVE number LESS than " + oct(Memory.SIZE)
                 QMessageBox.warning(self, 'Error',
                                     err.__str__() + error_text,
                                     QMessageBox.Ok,
