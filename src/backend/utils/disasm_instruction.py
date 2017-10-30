@@ -11,19 +11,33 @@ class DisasmInstruction:
     def __init__(self):
         self._state = DisasmState.NOT_AN_INSTRUCTION
         self._str = "Not an instruction"
+        self._num_next: int = None
 
     @property
     def state(self):
         return self._state
 
-    def set_state(self, state: DisasmState, representation=None):
+    @property
+    def num_next(self):
+        return self._num_next
+
+    def set_state(self, state: DisasmState, representation=None, num_next: int=None):
         self._state = state
         if state is DisasmState.NOT_AN_INSTRUCTION:
-            self._str = "Not an instruction"
+            if representation is not None:
+                self._str = representation
+            else:
+                self._str = "Not an instruction"
+
         elif state is DisasmState.DISASSEMBLED:
             self._str = representation
+            assert num_next is not None
+            self._num_next = num_next
+
         elif state is DisasmState.PART_OF_PREVIOUS:
             self._str = "Part of previous"
+            assert num_next is not None
+            self._num_next = num_next
 
     def __str__(self):
         return self._str

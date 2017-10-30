@@ -23,8 +23,7 @@ class Emulator:
         self._cpu = CPU(memory=self._memory, registers=self._registers, program_status=self._program_status)
 
         self._breakpoints = set()
-        self._instructions = {address: DisasmInstruction()
-                              for address in range(Memory.Part.ROM.start, Memory.Part.ROM.end, 2)}
+        self._instructions = {}
 
         self._start_instructions = Memory.Part.ROM.start
         self._end_instructions = self._start_instructions
@@ -51,21 +50,59 @@ class Emulator:
         else:
             self._breakpoints.add(address)
 
-    def code(self, address: int) -> str:
-        if address % 2 == 1 or address < 0 or address >= Memory.SIZE:
-            raise EmulatorWrongAddress(address)
-        return "{:07o}".format(int(self._memory.load(size="word", address=address).to01(), 2))
-
-    def disasm(self, address: int) -> (str, bool):
+    def disasm(self, address: int, num: int, type: str) -> (int, DisasmInstruction, bool):
         if address % 2 == 1 or address < 0 or address >= Memory.SIZE:
             raise EmulatorWrongAddress(address)
 
-        if address < self._start_instructions or address >= self._end_instructions:
-            return "Not an instruction", False
+        assert type in ("data", "instructions")
 
-        if self._instructions[address].state is DisasmState.PART_OF_PREVIOUS:
-            return None, address in self._breakpoints
-        return str(self._instructions[address]), address in self._breakpoints
+        result = []
+        if num <= 0:
+            return result
+
+        if type == "instructions":
+            while address in self._instructions and self._instructions[address].state is DisasmState.PART_OF_PREVIOUS:
+                address -= 2
+
+        while len(result) < num and address < Memory.SIZE:
+            breakpoint_set = address in self._breakpoints
+            if type == "data":
+                dis_instr = DisasmInstruction()
+                dis_instr.set_state(state=DisasmState.NOT_AN_INSTRUCTION,
+                                    representation="{:06o}".format(
+                                        int(self._memory.load(size="word", address=address).to01(), 2)
+                                    ))
+                result.append((address, dis_instr, breakpoint_set))
+
+            elif address not in self._instructions:
+                result.append((address, DisasmInstruction(), breakpoint_set))
+
+            else:
+                result.append((address, self._instructions[address], breakpoint_set))
+                address += self._instructions[address].num_next * 2
+
+            address += 2
+
+        address = result[0][0]
+        while len(result) < num and address > 0:
+            address -= 2
+            breakpoint_set = address in self._breakpoints
+            if type == "data":
+                dis_instr = DisasmInstruction()
+                dis_instr.set_state(state=DisasmState.NOT_AN_INSTRUCTION,
+                                    representation="{:06o}".format(
+                                        int(self._memory.load(size="word", address=address).to01(), 2)
+                                    ))
+                result.append((address, dis_instr, breakpoint_set))
+
+            elif address not in self._instructions:
+                result.append((address, DisasmInstruction(), breakpoint_set))
+
+            else:
+                address -= self._instructions[address].num_next * 2
+                result.insert(0, (address, self._instructions[address], breakpoint_set))
+
+        return result
 
     @property
     def memory(self) -> Memory:
@@ -100,9 +137,11 @@ class Emulator:
                 cur_next_instruction += 1
                 if cur_next_instruction == num_next_instructions:
                     self._instructions[tmp_addr].set_state(state=DisasmState.DISASSEMBLED,
-                                                           representation=tmp_repr.format(*data))
+                                                           representation=tmp_repr.format(*data),
+                                                           num_next=num_next_instructions)
                     stored = True
-                self._instructions[addr].set_state(state=DisasmState.PART_OF_PREVIOUS)
+                self._instructions[addr].set_state(state=DisasmState.PART_OF_PREVIOUS,
+                                                   num_next=num_next_instructions)
                 continue
 
             try:
@@ -145,7 +184,8 @@ class Emulator:
                                  else "word")
                 tmp_addr = addr
             else:
-                self._instructions[addr].set_state(state=DisasmState.DISASSEMBLED, representation=tmp_repr)
+                self._instructions[addr].set_state(state=DisasmState.DISASSEMBLED, representation=tmp_repr,
+                                                   num_next=0)
 
         if not stored:
             for addr in range(tmp_addr, to, 2):
