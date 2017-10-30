@@ -3,7 +3,6 @@ from src.backend.model.memory import Memory
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
 
-
 class BreakpointsView(QWidget):
     class BreakpointLine(QWidget):
         def __init__(self, emu: Emulator, address: str, data: str):
@@ -17,6 +16,7 @@ class BreakpointsView(QWidget):
             self.data = QLineEdit()
             self.data.setReadOnly(True)
             self.data.setText(data)
+            self.style = ""
 
             layout = QHBoxLayout()
             layout.setContentsMargins(0, 0, 0, 0)
@@ -27,7 +27,17 @@ class BreakpointsView(QWidget):
             self.setLayout(layout)
 
         def send_breakpoint(self, state):
+            self.set_checked(state == Qt.Checked)
             self.emu.toggle_breakpoint(int(self.address.text(), 8))
+
+        def set_checked(self, c: bool):
+            if c:
+                style = "background: yellow"
+            else:
+                style = ""
+            self.point.setStyleSheet(style)
+            self.address.setStyleSheet(style)
+            self.data.setStyleSheet(style)
 
     def assign_line(self, one: BreakpointLine, another: BreakpointLine):
         one.address.setText(another.address.text())
@@ -43,8 +53,8 @@ class BreakpointsView(QWidget):
         self.initUI()
 
     def initUI(self):
-        wight = len(oct(Memory.SIZE)) -2
-        self.add_format = '0{}o'.format(wight)
+        width = len(oct(Memory.SIZE)) -2
+        self.add_format = '0{}o'.format(width)
         self.line_widgets = list(self.BreakpointLine(self.emu, "", "")
                                  for _ in range(self.lines))
         self.fill(0, self.format_index)
@@ -129,3 +139,4 @@ class BreakpointsView(QWidget):
         else:
             point.setEnabled(False)
         point.setChecked(breakpoint)
+        #point.setChecked(True)
