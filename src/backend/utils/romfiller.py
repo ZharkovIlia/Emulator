@@ -13,7 +13,7 @@ class ROMFiller:
             size = font.getsize(text=alpha)
             assert size[0] == width, "Font is not fixed"
             max_height = max(max_height, size[1])
-            min_height = max(min_height, size[1])
+            min_height = min(min_height, size[1])
 
         data = []
         data.append(bitarray("{:016b}".format(width), endian='big'))

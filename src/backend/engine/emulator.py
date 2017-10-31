@@ -122,9 +122,9 @@ class Emulator:
 
     def _fill_ROM(self):
         self._glyphs = ROMFiller.get_glyphs()
-        self._glyphs_start = self._memory.Part.ROM.end - len(self._glyphs["data"])*16
+        self._glyphs_start = self._memory.Part.ROM.end - len(self._glyphs["data"])*2
         for i, v in enumerate(self._glyphs["data"]):
-            self._memory.store(address=self._glyphs_start + i*16, size="word", value=v)
+            self._memory.store(address=self._glyphs_start + i*2, size="word", value=v)
 
     def _disasm_from_to(self, from_: int, to: int):
         tmp_ps = ProgramStatus()
