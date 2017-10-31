@@ -4,7 +4,7 @@ from bitarray import bitarray
 
 class ROMFiller:
     @staticmethod
-    def get_glyphs() -> list:
+    def get_glyphs() -> dict:
         alphabet = "abcdefghijklmnopqrstuvwxyz"
         font = ImageFont.truetype("../../../resource/FreeMono.ttf", size=20)
         width, min_height = font.getsize(text='a')
@@ -15,14 +15,9 @@ class ROMFiller:
             max_height = max(max_height, size[1])
             min_height = min(min_height, size[1])
 
-        data = [bitarray("{:016b}".format(width), endian='big'),
-                bitarray("{:016b}".format(min_height), endian='big'),
-                bitarray("{:016b}".format(max_height), endian='big')]
-
+        data = []
         struct_size = width * max_height
         struct_size = ((struct_size - 1) // 16 + 1) * 16  # Now struct_size is aligned
-        struct_size += 16
-        data.append(bitarray("{:016b}".format(struct_size), endian='big'))
 
         for alpha in alphabet:
             size = font.getsize(text=alpha)
@@ -30,11 +25,8 @@ class ROMFiller:
             txt = ImageDraw.Draw(im)
             txt.text(xy=(0, 0), text=alpha, fill=0, font=font)
 
-            struct_bitmap_size = bitarray("{:016b}".format(size[1] * width), endian='big')
-            data.append(struct_bitmap_size)
-
-            struct_bitmap = list(bitarray("".join("0" for _ in range(16)), endian='big')
-                                 for _ in range(struct_size // 16 - 1))
+            struct_bitmap = list(bitarray("".join("0" for _ in range(8)), endian='big')
+                                 for _ in range(struct_size // 8))
             index_array = 0
             index_bit = 0
             bitarr = None
@@ -45,10 +37,11 @@ class ROMFiller:
 
                 bitarr[index_bit] = True if pixel == 0 else False
                 index_bit += 1
-                if index_bit % 16 == 0:
+                if index_bit % 8 == 0:
                     index_bit = 0
                     index_array += 1
 
             data.extend(struct_bitmap)
+            assert len(struct_bitmap) % 2 == 0
 
-        return data
+        return dict(data=data, width=width, min_height=min_height, max_height=max_height, bitmap_size=struct_size // 8)
