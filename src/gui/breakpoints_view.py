@@ -3,7 +3,7 @@ from src.backend.model.memory import Memory
 from src.backend.utils.disasm_instruction import DisasmInstruction, DisasmState
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPalette
+from PyQt5.QtGui import QPalette, QColor
 
 class BreakpointsView(QWidget):
     class BreakpointLine(QWidget):
@@ -39,18 +39,21 @@ class BreakpointsView(QWidget):
 
         def set_current(self, c: bool):
             if c:
-                style = "background: blue"
-            else:
-                style = ""
-            self.data.setStyleSheet(style)
-
-        def set_checked(self, c: bool):
-            if c:
-                self.p.setColor(QPalette.Window, Qt.yellow)
+                self.p.setColor(QPalette.Window, QColor.fromRgb(150, 200, 250))
                 self.setPalette(self.p)
+                self.data.setStyleSheet("background: #96C8FA")
             else:
                 self.p.setColor(QPalette.Window, Qt.white)
                 self.setPalette(self.p)
+                self.data.setStyleSheet("")
+
+        def set_checked(self, c: bool):
+            if c:
+                self.p.setColor(QPalette.Window, QColor.fromRgb(250, 180, 190))
+                self.setPalette(self.p)
+                self.data.setStyleSheet("background: #FAB4BE")
+            else:
+                self.set_current(int(self.address.text(), 8) == self.emu.current_pc)
 
     def assign_line(self, one: BreakpointLine, another: BreakpointLine):
         one.address.setText(another.address.text())
