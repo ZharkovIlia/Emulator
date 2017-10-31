@@ -43,8 +43,6 @@ class Emulator:
     def toggle_breakpoint(self, address: int):
         if address % 2 == 1:
             raise EmulatorOddBreakpoint()
-        if Memory.get_type_by_address(address) != Memory.Part.ROM:
-            raise EmulatorBreakpointNotInROM()
 
         if address in self._breakpoints:
             self._breakpoints.remove(address)
