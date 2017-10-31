@@ -35,27 +35,26 @@ class BreakpointsView(QWidget):
             self.emu.breakpoint(address=int(self.address.text(), 8), set=self.point.isChecked())
 
         def set_current(self, c: bool):
-            p = self.point.isChecked()
-            if p and c:
+            self.set_color(c, self.point.isChecked())
+
+        def set_checked(self, c: bool):
+            self.point.setChecked(c)
+            p = (int(self.address.text(), 8) == self.emu.current_pc)
+            self.set_color(c, p)
+
+        def set_color(self, check: bool, current: bool):
+            if check and current:
                 self.setStyleSheet("background: #C896FF")
-            elif c:
+                self.data.setStyleSheet("background: #C896FF")
+            elif check:
+                self.setStyleSheet("background: #FAB4BE")
+                self.data.setStyleSheet("background: #FAB4BE")
+            elif current:
                 self.setStyleSheet("background: #96C8FA")
                 self.data.setStyleSheet("background: #96C8FA")
             else:
                 self.setStyleSheet("background: white")
                 self.data.setStyleSheet("background: white")
-
-        def set_checked(self, c: bool):
-            self.point.setChecked(c)
-            p = (int(self.address.text(), 8) == self.emu.current_pc)
-            if p and c:
-                self.setStyleSheet("background: #C896FF")
-                self.data.setStyleSheet("background: #C896FF")
-            elif c:
-                self.setStyleSheet("background: #FAB4BE")
-                self.data.setStyleSheet("background: #FAB4BE")
-            else:
-                self.set_current(p)
 
     def assign_line(self, one: BreakpointLine, another: BreakpointLine):
         one.address.setText(another.address.text())
