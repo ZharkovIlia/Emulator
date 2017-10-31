@@ -13,28 +13,30 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.emulator = Emulator()
-
+        self.setWindowTitle("Emulator")
         self.initUI()
 
     def initUI(self):
         address_label = QLabel('Address')
         self.address_editor = QLineEdit(format(self.emulator.current_pc, 'o'))
+        self.address_editor.editingFinished.connect(self.get_address)
         self.address_description = QLabel("Please, type address in OCTAL format")
         self.address_description.setStyleSheet("color: red")
 
         format_label = QLabel('Data type')
         self.format_box = QComboBox()
         self.format_box.addItems(['octal', 'instructions'])
+        self.format_box.currentIndexChanged.connect(self.get_address)
 
-        self.get_button = QPushButton('get', self)
-        self.get_button.clicked.connect(self.get_address)
+        self.go_to_pc = QPushButton('Go to current pc', self)
+        self.go_to_pc.clicked.connect(self.get_current)
 
         choose_address = QGridLayout()
         choose_address.addWidget(address_label, 1, 0)
         choose_address.addWidget(self.address_editor, 1, 1)
         choose_address.addWidget(format_label, 1, 2)
         choose_address.addWidget(self.format_box, 1, 3)
-        choose_address.addWidget(self.get_button, 1, 4)
+        choose_address.addWidget(self.go_to_pc, 2, 0, 1, 2)
 
         self.breakpoint_table = BreakpointsView(self.emulator, 10, self.format_box.currentText())
 
@@ -75,6 +77,9 @@ class MainWindow(QWidget):
                                 err.__str__() + error_text,
                                 QMessageBox.Ok,
                                 QMessageBox.Ok)
+    def get_current(self):
+        self.address_editor.setText(format(self.emulator.current_pc, 'o'))
+        self.get_address()
 
 app = QApplication(sys.argv)
 window = MainWindow()

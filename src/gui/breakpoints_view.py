@@ -3,6 +3,7 @@ from src.backend.model.memory import Memory
 from src.backend.utils.disasm_instruction import DisasmInstruction, DisasmState
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPalette
 
 class BreakpointsView(QWidget):
     class BreakpointLine(QWidget):
@@ -15,9 +16,9 @@ class BreakpointsView(QWidget):
             self.point.stateChanged.connect(self.send_breakpoint)
             self.address = QLabel(address)
             self.data = QLineEdit()
+            self.data.setFrame(False)
             self.data.setReadOnly(True)
             self.data.setText(data)
-            self.style = ""
 
             layout = QHBoxLayout()
             layout.setContentsMargins(0, 0, 0, 0)
@@ -25,20 +26,31 @@ class BreakpointsView(QWidget):
             layout.addWidget(self.address)
             layout.addWidget(self.data)
 
+            self.setAutoFillBackground(True)
+            self.p = QPalette()
+            self.p.setColor(QPalette.Window, Qt.white)
+            self.setPalette(self.p)
+
             self.setLayout(layout)
 
         def send_breakpoint(self, state):
             self.set_checked(state == Qt.Checked)
             self.emu.toggle_breakpoint(int(self.address.text(), 8))
 
-        def set_checked(self, c: bool):
+        def set_current(self, c: bool):
             if c:
-                style = "background: yellow"
+                style = "background: blue"
             else:
                 style = ""
-            self.point.setStyleSheet(style)
-            self.address.setStyleSheet(style)
             self.data.setStyleSheet(style)
+
+        def set_checked(self, c: bool):
+            if c:
+                self.p.setColor(QPalette.Window, Qt.yellow)
+                self.setPalette(self.p)
+            else:
+                self.p.setColor(QPalette.Window, Qt.white)
+                self.setPalette(self.p)
 
     def assign_line(self, one: BreakpointLine, another: BreakpointLine):
         one.address.setText(another.address.text())
@@ -64,6 +76,10 @@ class BreakpointsView(QWidget):
         lay.setSpacing(0)
         for line in self.line_widgets:
             lay.addWidget(line)
+        wlay = QFrame()
+        wlay.setLayout(lay)
+        wlay.setObjectName("kyky")
+        wlay.setStyleSheet("#kyky{border: 7px solid white}")
 
         up = QPushButton("up")
         up.clicked.connect(self.move_up)
@@ -78,7 +94,7 @@ class BreakpointsView(QWidget):
         buttons.addWidget(down)
 
         wrap = QHBoxLayout()
-        wrap.addLayout(lay)
+        wrap.addWidget(wlay)
         wrap.addLayout(buttons)
 
         self.setLayout(wrap)
@@ -92,6 +108,7 @@ class BreakpointsView(QWidget):
             add, data, breakpoint = data_list[i]
             self.line_widgets[i].address.setText(format(add, self.add_format))
             self.line_widgets[i].data.setText(str(data))
+            self.line_widgets[i].set_current(add == self.emu.current_pc)
             self.change_box(self.line_widgets[i].point, data, breakpoint)
 
     def move_down(self):
@@ -109,5 +126,6 @@ class BreakpointsView(QWidget):
             point.setEnabled(False)
         else:
             point.setEnabled(True)
+        point.setEnabled(True)
 
         point.setChecked(breakpoint)
