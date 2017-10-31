@@ -35,7 +35,10 @@ class BreakpointsView(QWidget):
             self.emu.toggle_breakpoint(int(self.address.text(), 8))
 
         def set_current(self, c: bool):
-            if c:
+            p = self.point.isChecked()
+            if p and c:
+                self.setStyleSheet("background: #C896FF")
+            elif c:
                 self.setStyleSheet("background: #96C8FA")
                 self.data.setStyleSheet("background: #96C8FA")
             else:
@@ -44,11 +47,15 @@ class BreakpointsView(QWidget):
 
         def set_checked(self, c: bool):
             self.point.setChecked(c)
-            if c:
+            p = (int(self.address.text(), 8) == self.emu.current_pc)
+            if p and c:
+                self.setStyleSheet("background: #C896FF")
+                self.data.setStyleSheet("background: #C896FF")
+            elif c:
                 self.setStyleSheet("background: #FAB4BE")
                 self.data.setStyleSheet("background: #FAB4BE")
             else:
-                self.set_current(int(self.address.text(), 8) == self.emu.current_pc)
+                self.set_current(p)
 
     def assign_line(self, one: BreakpointLine, another: BreakpointLine):
         one.address.setText(another.address.text())
