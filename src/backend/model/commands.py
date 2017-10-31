@@ -1,12 +1,8 @@
 import enum
 import re
 
-from src.backend.utils.exceptions import\
-    CommandWrongNumberBits,\
-    UnknownCommand,\
-    OperandWrongNumberOfBits,\
-    OperandWrongPCMode,\
-    CommandJMPToRegister
+from src.backend.utils.exceptions import CommandWrongNumberBits, UnknownCommand, OperandWrongNumberOfBits, \
+    OperandWrongPCMode, CommandJMPToRegister, CommandException
 from bitarray import bitarray
 
 from src.backend.model.programstatus import ProgramStatus
@@ -28,17 +24,12 @@ class Operation(enum.Enum):
 
 
 class Operand:
-    def __init__(self, reg: bitarray, mode: bitarray):
-        if reg.length() != 3 or mode.length() != 3:
+    def __init__(self, reg: str, mode: str):
+        if len(reg) != 3 or len(mode) != 3:
             raise OperandWrongNumberOfBits()
 
-        tmp = bitarray("00000", endian='big')
-        tmp.extend(reg)
-        self._reg = int.from_bytes(tmp.tobytes(), byteorder='big', signed=False)
-
-        tmp = bitarray("00000", endian='big')
-        tmp.extend(mode)
-        self._mode = int.from_bytes(tmp.tobytes(), byteorder='big', signed=False)
+        self._reg = int(reg, 2)
+        self._mode = int(mode, 2)
 
         if self._reg == 7 and self._mode not in (0, 2, 3, 6, 7):
             raise OperandWrongPCMode()
@@ -53,7 +44,7 @@ class Operand:
         return self._reg == 7
 
     def set_next_instruction(self, instr: bitarray):
-        self._next_instruction = int.from_bytes(instr.tobytes(), byteorder='big', signed=False)
+        self._next_instruction = int(instr.to01(), 2)
 
     def add_next_instruction_to_inner_register(self):
         self._inner_register.inc(value=self._next_instruction)
@@ -196,8 +187,8 @@ class AbstractCommand:
         self._on_byte = on_byte
         self._decode = add_decode
         self._size = 'byte' if self._on_byte else 'word'
-        self._src_operand = None
-        self._dest_operand = None
+        self._src_operand: Operand = None
+        self._dest_operand: Operand = None
         self._offset = None
         self._number = None
         self._type = type_
@@ -300,10 +291,8 @@ class AbstractCommand:
 class DoubleOperandCommand(AbstractCommand):
     def __init__(self, matcher, **kwargs):
         super(DoubleOperandCommand, self).__init__(**kwargs)
-        self._src_operand = Operand(reg=bitarray(matcher.group("srcreg"), endian='big'),
-                                    mode=bitarray(matcher.group("srcmode"), endian='big'))
-        self._dest_operand = Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                     mode=bitarray(matcher.group("destmode"), endian='big'))
+        self._src_operand = Operand(reg=matcher.group("srcreg"), mode=matcher.group("srcmode"))
+        self._dest_operand = Operand(reg=matcher.group("destreg"), mode=matcher.group("destmode"))
 
         self._add_all_operations()
 
@@ -321,8 +310,7 @@ class DoubleOperandCommand(AbstractCommand):
 class SingleOperandCommand(AbstractCommand):
     def __init__(self, matcher, **kwargs):
         super(SingleOperandCommand, self).__init__(**kwargs)
-        self._dest_operand = Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                     mode=bitarray(matcher.group("destmode"), endian='big'))
+        self._dest_operand = Operand(reg=matcher.group("destreg"), mode=matcher.group("destmode"))
 
         self._add_all_operations()
 
@@ -340,10 +328,8 @@ class SingleOperandCommand(AbstractCommand):
 class RegisterSourceCommand(AbstractCommand):
     def __init__(self, matcher, **kwargs):
         super(RegisterSourceCommand, self).__init__(**kwargs)
-        self._src_operand = Operand(reg=bitarray(matcher.group("reg"), endian='big'),
-                                    mode=bitarray("000", endian='big'))
-        self._dest_operand = Operand(reg=bitarray(matcher.group("destreg"), endian='big'),
-                                     mode=bitarray(matcher.group("destmode"), endian='big'))
+        self._src_operand = Operand(reg=matcher.group("reg"), mode="000")
+        self._dest_operand = Operand(reg=matcher.group("destreg"), mode=matcher.group("destmode"))
 
         self._add_all_operations()
 
@@ -385,12 +371,56 @@ class BranchCommand(AbstractCommand):
         raise NotImplementedError()
 
 
+class MULCommand(AbstractCommand):
+    def __init__(self, matcher, **kwargs):
+        super(MULCommand, self).__init__(**kwargs)
+        self._dest_operand = Operand(reg=matcher.group("reg"), mode="000")
+        self._src_operand = Operand(reg=matcher.group("srcreg"), mode=matcher.group("srcmode"))
+
+        self._dest_reg = int(matcher.group("reg"), 2)
+        if self._dest_reg in (6, 7):
+            raise CommandException(what="Cannot perform multiplication on SP or PC as a destination")
+        if self._dest_reg % 2 == 0:
+            self._additional_reg = Register()
+        self._add_all_operations()
+
+    def execute(self):
+        value_src = self.src_operand.inner_register.get(size="word", signed=True)
+        value_dest = self.dest_operand.inner_register.get(size="word", signed=True)
+        tmp = value_dest * value_src
+        self.program_status.set(bit="N", value=tmp < 0)
+        self.program_status.set(bit="Z", value=tmp == 0)
+        self.program_status.set(bit="V", value=False)
+        if tmp < Register.BOUND_PROPERTIES[("word", True)][0] or tmp > Register.BOUND_PROPERTIES[("word", True)][1]:
+            self.program_status.set(bit="C", value=True)
+
+        bitarr = bitarray(endian='big')
+        bitarr.frombytes(tmp.to_bytes(4, byteorder='big', signed=True))
+        self.dest_operand.inner_register.set_word(value=bitarr[16:32])
+        if self._dest_reg % 2 == 0:
+            self._additional_reg.set_word(value=bitarr[0:16])
+
+    def _add_all_operations(self):
+        self._add_decode()
+        self._add_fetch_operands(size="word")
+        self._add_execute(self.execute)
+        self._add_store_operands(size="word")
+
+    def _add_store_operands(self, size: str):
+        self._dest_operand.add_store(operations=self._operations, size="word")
+        if self._dest_reg % 2 == 0:
+            self._operations.append({"operation": Operation.STORE_REGISTER,
+                                     "register": self._dest_reg + 1,
+                                     "size": "word",
+                                     "value": self._additional_reg.word})
+
+
 class JMPCommand(AbstractCommand):
     def __init__(self, matcher, **kwargs):
         super(JMPCommand, self).__init__(**kwargs)
-        dest_reg = bitarray(matcher.group("destreg"), endian='big')
-        dest_mode = bitarray(matcher.group("destmode"), endian='big')
-        if dest_mode.to01() == "000":
+        dest_reg = matcher.group("destreg")
+        dest_mode = matcher.group("destmode")
+        if dest_mode == "000":
             raise CommandJMPToRegister()
         self._dest_operand = Operand(reg=dest_reg, mode=dest_mode)
         self._dest_operand.do_not_fetch_operand = True
@@ -408,12 +438,12 @@ class JSRCommand(AbstractCommand):
     def __init__(self, matcher, **kwargs):
         super(JSRCommand, self).__init__(**kwargs)
 
-        dest_reg = bitarray(matcher.group("destreg"), endian='big')
-        dest_mode = bitarray(matcher.group("destmode"), endian='big')
-        self._src_reg = bitarray(matcher.group("reg"), endian='big')
-        if dest_mode.to01() == "000":
+        dest_reg = matcher.group("destreg")
+        dest_mode = matcher.group("destmode")
+        self._src_reg = matcher.group("reg")
+        if dest_mode == "000":
             raise CommandJMPToRegister()
-        if self._src_reg.length() != 3:
+        if len(self._src_reg) != 3:
             raise OperandWrongNumberOfBits()
 
         self._dest_operand = Operand(reg=dest_reg, mode=dest_mode)
@@ -426,7 +456,7 @@ class JSRCommand(AbstractCommand):
         self._add_jump()
 
     def _add_push_onto_stack(self):
-        self._subcommand = Commands.get_command_by_code(code=bitarray("0001000" + self._src_reg.to01() + "100110",
+        self._subcommand = Commands.get_command_by_code(code=bitarray("0001000" + self._src_reg + "100110",
                                                                       endian='big'),
                                                         program_status=ProgramStatus(), add_decode=False)
 
@@ -434,7 +464,7 @@ class JSRCommand(AbstractCommand):
         self._operations.extend(self._subcommand._operations)
 
     def _add_mov_pc_to_reg(self):
-        tmp_subcommand = Commands.get_command_by_code(code=bitarray("0001000111000" + self._src_reg.to01(),
+        tmp_subcommand = Commands.get_command_by_code(code=bitarray("0001000111000" + self._src_reg,
                                                                     endian="big"),
                                                       program_status=ProgramStatus(), add_decode=False)
 
@@ -449,11 +479,11 @@ class RTSCommand(AbstractCommand):
     def __init__(self, matcher, **kwargs):
         super(RTSCommand, self).__init__(**kwargs)
 
-        self._src_reg = bitarray(matcher.group("reg"), endian='big')
-        if self._src_reg.length() != 3:
+        self._src_reg = matcher.group("reg")
+        if len(self._src_reg) != 3:
             raise OperandWrongNumberOfBits()
 
-        self._src_operand = Operand(reg=self._src_reg, mode=bitarray("000", endian='big'))
+        self._src_operand = Operand(reg=self._src_reg, mode="000")
 
         self._add_decode()
         self._add_fetch_operands(size="word")
@@ -461,7 +491,7 @@ class RTSCommand(AbstractCommand):
         self._add_pop_from_stack()
 
     def _add_pop_from_stack(self):
-        self._subcommand = Commands.get_command_by_code(code=bitarray("0001"  + "010110000" + self._src_reg.to01(),
+        self._subcommand = Commands.get_command_by_code(code=bitarray("0001"  + "010110000" + self._src_reg,
                                                                       endian='big'),
                                                         program_status=ProgramStatus(), add_decode=False)
 
@@ -784,23 +814,19 @@ class CMPCommand(DoubleOperandCommand):
         super(CMPCommand, self).__init__(**kwargs)
 
     def execute(self):
-        num_bytes = 1 if self.on_byte else 2
-        value_src = self.src_operand.inner_register.get(size=self.size, signed=True)
-        value_dest = self.dest_operand.inner_register.get(size=self.size, signed=True)
+        value_src = self.src_operand.inner_register.get(size=self.size, signed=False)
+        value_dest = self.dest_operand.inner_register.get(size=self.size, signed=False)
+        max_signed = Register.BOUND_PROPERTIES[(self.size, True)][1]
 
-        tmp = ~value_dest
-        tmp = int.from_bytes(tmp.to_bytes(num_bytes, byteorder='big', signed=True),
-                             byteorder='big', signed=False)
-        tmp += int.from_bytes(value_src.to_bytes(num_bytes, byteorder='big', signed=True),
-                              byteorder='big', signed=False)
-        tmp += 1
+        tmp = self.dest_operand.inner_register.byte() if self.on_byte else self.dest_operand.inner_register.word()
+        tmp.invert()
+        tmp = value_src + int(tmp.to01(), 2) + 1
+
         self.program_status.set(bit="C", value=not (tmp > Register.BOUND_PROPERTIES[(self.size, False)][1]))
         tmp %= (Register.BOUND_PROPERTIES[(self.size, False)][1] + 1)
-        tmp = int.from_bytes(tmp.to_bytes(num_bytes, byteorder='big', signed=False),
-                             byteorder='big', signed=True)
-
-        self.program_status.set(bit="V", value=value_dest ^ value_src < 0 and not value_dest ^ tmp < 0)
-        self.program_status.set(bit="N", value=tmp < 0)
+        self.program_status.set(bit="V", value=value_dest ^ value_src > max_signed
+                                and not value_dest ^ tmp > max_signed)
+        self.program_status.set(bit="N", value=tmp > max_signed)
         self.program_status.set(bit="Z", value=tmp == 0)
 
 
@@ -809,22 +835,17 @@ class ADDCommand(DoubleOperandCommand):
         super(ADDCommand, self).__init__(**kwargs)
 
     def execute(self):
-        value_src = self.src_operand.inner_register.get(size="word", signed=True)
-        value_dest = self.dest_operand.inner_register.get(size="word", signed=True)
-
-        tmp = int.from_bytes(value_dest.to_bytes(2, byteorder='big', signed=True),
-                             byteorder='big', signed=False)
-        tmp += int.from_bytes(value_src.to_bytes(2, byteorder='big', signed=True),
-                              byteorder='big', signed=False)
+        value_src = self.src_operand.inner_register.get(size="word", signed=False)
+        value_dest = self.dest_operand.inner_register.get(size="word", signed=False)
+        max_signed_word = Register.BOUND_PROPERTIES[("word", True)][1]
+        tmp = value_dest + value_src
         self.program_status.set(bit="C", value=(tmp > Register.BOUND_PROPERTIES[("word", False)][1]))
         tmp %= (Register.BOUND_PROPERTIES[("word", False)][1] + 1)
-        tmp = int.from_bytes(tmp.to_bytes(2, byteorder='big', signed=False),
-                             byteorder='big', signed=True)
-
-        self.program_status.set(bit="V", value=not value_dest ^ value_src < 0 and value_src ^ tmp < 0)
-        self.program_status.set(bit="N", value=tmp < 0)
+        self.program_status.set(bit="V", value=not value_dest ^ value_src > max_signed_word
+                                and value_src ^ tmp > max_signed_word)
+        self.program_status.set(bit="N", value=tmp > max_signed_word)
         self.program_status.set(bit="Z", value=tmp == 0)
-        self.dest_operand.inner_register.set(size="word", signed=True, value=tmp)
+        self.dest_operand.inner_register.set(size="word", signed=False, value=tmp)
 
 
 class SUBCommand(DoubleOperandCommand):
@@ -832,24 +853,21 @@ class SUBCommand(DoubleOperandCommand):
         super(SUBCommand, self).__init__(**kwargs)
 
     def execute(self):
-        value_src = self.src_operand.inner_register.get(size="word", signed=True)
-        value_dest = self.dest_operand.inner_register.get(size="word", signed=True)
+        value_src = self.src_operand.inner_register.get(size="word", signed=False)
+        value_dest = self.dest_operand.inner_register.get(size="word", signed=False)
+        max_signed_word = Register.BOUND_PROPERTIES[("word", True)][1]
 
-        tmp = ~value_src
-        tmp = int.from_bytes(tmp.to_bytes(2, byteorder='big', signed=True),
-                             byteorder='big', signed=False)
-        tmp += int.from_bytes(value_dest.to_bytes(2, byteorder='big', signed=True),
-                              byteorder='big', signed=False)
-        tmp += 1
+        tmp = self.src_operand.inner_register.word()
+        tmp.invert()
+        tmp = value_dest + int(tmp.to01(), 2) + 1
+
         self.program_status.set(bit="C", value=not (tmp > Register.BOUND_PROPERTIES[("word", False)][1]))
         tmp %= (Register.BOUND_PROPERTIES[("word", False)][1] + 1)
-        tmp = int.from_bytes(tmp.to_bytes(2, byteorder='big', signed=False),
-                             byteorder='big', signed=True)
-
-        self.program_status.set(bit="V", value=value_dest ^ value_src < 0 and not value_src ^ tmp < 0)
-        self.program_status.set(bit="N", value=tmp < 0)
+        self.program_status.set(bit="V", value=value_dest ^ value_src > max_signed_word
+                                and not value_src ^ tmp > max_signed_word)
+        self.program_status.set(bit="N", value=tmp > max_signed_word)
         self.program_status.set(bit="Z", value=tmp == 0)
-        self.dest_operand.inner_register.set(size="word", signed=True, value=tmp)
+        self.dest_operand.inner_register.set(size="word", signed=False, value=tmp)
 
 
 class BITCommand(DoubleOperandCommand):
@@ -1100,6 +1118,7 @@ class InstanceCommand(enum.Enum):
     BIT  = (_MSB_PATTERN + r'011'        + _SRC_PATTERN + _DEST_PATTERN, BITCommand,  "BIT",  False)
     BIC  = (_MSB_PATTERN + r'100'        + _SRC_PATTERN + _DEST_PATTERN, BICCommand,  "BIC",  True)
     BIS  = (_MSB_PATTERN + r'101'        + _SRC_PATTERN + _DEST_PATTERN, BISCommand,  "BIS",  True)
+    MUL  = (               r'0111000'    + _SRC_PATTERN + _REG_PATTERN,  MULCommand,  "MUL",  True)
     XOR  = (               r'0111100'    + _REG_PATTERN + _DEST_PATTERN, XORCommand,  "XOR",  True)
     BR   = (               r'00000001'   + _OFFSET_PATTERN,              BRCommand,   "BR",   False)
     BNE  = (               r'00000010'   + _OFFSET_PATTERN,              BNECommand,  "BNE",  False)
@@ -1124,7 +1143,6 @@ class InstanceCommand(enum.Enum):
 
     #BHIS = (               r'10000110'   + _OFFSET_PATTERN,              BHISCommand, "BHIS", False)
     #BLO  = (               r'10000111'   + _OFFSET_PATTERN,              BLOCommand,  "BLO",  False)
-    #MUL  = (               r'0111000'    + _REG_PATTERN + _SRC_PATTERN,  MULCommand,  "MUL",  True)
     #DIV  = (               r'0111001'    + _REG_PATTERN + _SRC_PATTERN,  DIVCommand,  "DIV",  True)
     #ASH  = (               r'0111010'    + _REG_PATTERN + _SRC_PATTERN,  ASHCommand,  "ASH",  True)
     #ASHC = (               r'0111011'    + _REG_PATTERN + _SRC_PATTERN,  ASHCCommand, "ASHC", True)

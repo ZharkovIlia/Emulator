@@ -4,7 +4,7 @@ from bitarray import bitarray
 
 class ROMFiller:
     @staticmethod
-    def get_glyphs():
+    def get_glyphs() -> list:
         alphabet = "abcdefghijklmnopqrstuvwxyz"
         font = ImageFont.truetype("../../../resource/FreeMono.ttf", size=20)
         width, min_height = font.getsize(text='a')
@@ -15,13 +15,12 @@ class ROMFiller:
             max_height = max(max_height, size[1])
             min_height = min(min_height, size[1])
 
-        data = []
-        data.append(bitarray("{:016b}".format(width), endian='big'))
-        data.append(bitarray("{:016b}".format(min_height), endian='big'))
-        data.append(bitarray("{:016b}".format(max_height), endian='big'))
+        data = [bitarray("{:016b}".format(width), endian='big'),
+                bitarray("{:016b}".format(min_height), endian='big'),
+                bitarray("{:016b}".format(max_height), endian='big')]
 
-        struct_size = width*max_height
-        struct_size = ((struct_size - 1) // 16 + 1) * 16 # Not struct_size is aligned
+        struct_size = width * max_height
+        struct_size = ((struct_size - 1) // 16 + 1) * 16  # Now struct_size is aligned
         struct_size += 16
         data.append(bitarray("{:016b}".format(struct_size), endian='big'))
 
@@ -31,7 +30,7 @@ class ROMFiller:
             txt = ImageDraw.Draw(im)
             txt.text(xy=(0, 0), text=alpha, fill=0, font=font)
 
-            struct_bitmap_size = bitarray("{:016b}".format(size[1]*width), endian='big')
+            struct_bitmap_size = bitarray("{:016b}".format(size[1] * width), endian='big')
             data.append(struct_bitmap_size)
 
             struct_bitmap = list(bitarray("".join("0" for _ in range(16)), endian='big')
@@ -52,4 +51,4 @@ class ROMFiller:
 
             data.extend(struct_bitmap)
 
-        return dict(width=width, min_height=min_height, max_height=max_height, struct_size=struct_size, data=data)
+        return data

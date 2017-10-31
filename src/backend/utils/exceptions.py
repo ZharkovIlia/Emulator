@@ -19,11 +19,6 @@ class EmulatorWrongAddress(EmulatorException):
         super(EmulatorWrongAddress, self).__init__(what="Address {} is wrong".format(address))
 
 
-class EmulatorBreakpointNotInROM(EmulatorException):
-    def __init__(self):
-        super(EmulatorBreakpointNotInROM, self).__init__("Address of breakpoint is not in ROM")
-
-
 class MemoryException(EmulatorException):
     def __init__(self, what: str):
         super(MemoryException, self).__init__(what)

@@ -482,6 +482,7 @@ class CPUTest(unittest.TestCase):
         self.ps.set(bit="Z", value=True)
         self.cpu.execute_next()
         self.assertEqual(self.ps.bits, dict(N=0, Z=0, C=1, V=1))
+        self.assertEqual(self.registers[2].word().to01(), "0000000000000001")
 
     def test_sub_v_set_c_set(self):
         self.memory.store(address=256, size="word", value=bitarray("1110000011000010"))
@@ -531,6 +532,31 @@ class CPUTest(unittest.TestCase):
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=0, V=0))
         self.assertEqual(self.registers[3].word().to01(), "0111011111011010")
         self.assertEqual(self.registers[2].word().to01(), "1111111111111111")
+
+    def test_mul_not_overflow(self):
+        self.memory.store(address=256, size="word", value=bitarray("0111000000011010"))
+        self.registers[3].set_word(value=bitarray("0001001001001001"))
+        self.registers[2].set_word(value=bitarray("0000000000000111"))
+        self.ps.set(bit="N", value=True)
+        self.ps.set(bit="C", value=True)
+        self.ps.set(bit="Z", value=True)
+        self.ps.set(bit="V", value=True)
+        self.cpu.execute_next()
+        self.assertEqual(self.ps.bits, dict(N=0, Z=0, C=1, V=0))
+        self.assertEqual(self.registers[2].word().to01(), "0111111111111111")
+        self.assertEqual(self.registers[3].word().to01(), "0000000000000000")
+
+    def test_mul_overflow(self):
+        self.memory.store(address=256, size="word", value=bitarray("0111000000011010"))
+        self.registers[3].set_word(value=bitarray("1100000000000001"))
+        self.registers[2].set_word(value=bitarray("0000000000000100"))
+        self.ps.clear()
+        self.ps.set(bit="Z", value=True)
+        self.ps.set(bit="V", value=True)
+        self.cpu.execute_next()
+        self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=1, V=0))
+        self.assertEqual(self.registers[2].word().to01(), "0000000000000100")
+        self.assertEqual(self.registers[3].word().to01(), "1111111111111111")
 
     def test_xor(self):
         self.memory.store(address=256, size="word", value=bitarray("0111100011000010"))

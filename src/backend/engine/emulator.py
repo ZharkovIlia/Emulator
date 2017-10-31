@@ -1,5 +1,5 @@
 from src.backend.model.commands import Commands
-from src.backend.utils.exceptions import EmulatorBreakpointNotInROM, EmulatorOddBreakpoint, EmulatorWrongAddress, \
+from src.backend.utils.exceptions import EmulatorOddBreakpoint, EmulatorWrongAddress, \
     UnknownCommand
 from src.backend.utils.disasm_instruction import DisasmInstruction, DisasmState
 from src.backend.utils.romfiller import ROMFiller
@@ -52,7 +52,6 @@ class Emulator:
     def breakpoint(self, address: int, set: bool):
         if set != (address in self._breakpoints):
             self.toggle_breakpoint(address)
-
 
     def disasm(self, address: int, num: int, type: str) -> list:
         if address % 2 == 1 or address < 0 or address >= Memory.SIZE:
@@ -127,8 +126,8 @@ class Emulator:
 
     def _fill_ROM(self):
         self._glyphs = ROMFiller.get_glyphs()
-        self._glyphs_start = self._memory.Part.ROM.end - len(self._glyphs["data"])*2
-        for i, v in enumerate(self._glyphs["data"]):
+        self._glyphs_start = self._memory.Part.ROM.end - len(self._glyphs)*2
+        for i, v in enumerate(self._glyphs):
             self._memory.store(address=self._glyphs_start + i*2, size="word", value=v)
 
     def _disasm_from_to(self, from_: int, to: int):
@@ -155,7 +154,7 @@ class Emulator:
             try:
                 com = Commands.get_command_by_code(code=self._memory.load(size="word", address=addr),
                                                    program_status=tmp_ps)
-            except UnknownCommand as exc:
+            except UnknownCommand:
                 self._instructions[addr].set_state(state=DisasmState.NOT_AN_INSTRUCTION)
                 continue
 
