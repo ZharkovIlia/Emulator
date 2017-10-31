@@ -2,6 +2,7 @@ from src.backend.model.commands import Commands
 from src.backend.utils.exceptions import EmulatorBreakpointNotInROM, EmulatorOddBreakpoint, EmulatorWrongAddress, \
     UnknownCommand
 from src.backend.utils.disasm_instruction import DisasmInstruction, DisasmState
+from src.backend.utils.romfiller import ROMFiller
 
 from src.backend.model.memory import Memory
 from src.backend.model.registers import Register, StackPointer, ProgramCounter
@@ -50,11 +51,11 @@ class Emulator:
         else:
             self._breakpoints.add(address)
 
-    def disasm(self, address: int, num: int, type: str) -> (int, DisasmInstruction, bool):
+    def disasm(self, address: int, num: int, type: str) -> list:
         if address % 2 == 1 or address < 0 or address >= Memory.SIZE:
             raise EmulatorWrongAddress(address)
 
-        assert type in ("data", "instructions")
+        assert type in ("octal", "instructions")
 
         result = []
         if num <= 0:
@@ -66,7 +67,7 @@ class Emulator:
 
         while len(result) < num and address < Memory.SIZE:
             breakpoint_set = address in self._breakpoints
-            if type == "data":
+            if type == "octal":
                 dis_instr = DisasmInstruction()
                 dis_instr.set_state(state=DisasmState.NOT_AN_INSTRUCTION,
                                     representation="{:06o}".format(
@@ -87,19 +88,20 @@ class Emulator:
         while len(result) < num and address > 0:
             address -= 2
             breakpoint_set = address in self._breakpoints
-            if type == "data":
+            if type == "octal":
                 dis_instr = DisasmInstruction()
                 dis_instr.set_state(state=DisasmState.NOT_AN_INSTRUCTION,
                                     representation="{:06o}".format(
                                         int(self._memory.load(size="word", address=address).to01(), 2)
                                     ))
-                result.append((address, dis_instr, breakpoint_set))
+                result.insert(0, (address, dis_instr, breakpoint_set))
 
             elif address not in self._instructions:
-                result.append((address, DisasmInstruction(), breakpoint_set))
+                result.insert(0, (address, DisasmInstruction(), breakpoint_set))
 
             else:
                 address -= self._instructions[address].num_next * 2
+                breakpoint_set = address in self._breakpoints
                 result.insert(0, (address, self._instructions[address], breakpoint_set))
 
         return result
@@ -121,7 +123,10 @@ class Emulator:
         return self._registers[CPU.ProgramCounter].get(size="word", signed=False)
 
     def _fill_ROM(self):
-        return
+        self._glyphs = ROMFiller.get_glyphs()
+        self._glyphs_start = self._memory.Part.ROM.end - len(self._glyphs["data"])*16
+        for i, v in enumerate(self._glyphs["data"]):
+            self._memory.store(address=self._glyphs_start + i*16, size="word", value=v)
 
     def _disasm_from_to(self, from_: int, to: int):
         tmp_ps = ProgramStatus()
