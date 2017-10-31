@@ -41,13 +41,18 @@ class Emulator:
                 break
 
     def toggle_breakpoint(self, address: int):
-        if address % 2 == 1:
+        if address % 2 == 1 or address < 0 or address >= Memory.SIZE:
             raise EmulatorOddBreakpoint()
 
         if address in self._breakpoints:
             self._breakpoints.remove(address)
         else:
             self._breakpoints.add(address)
+
+    def breakpoint(self, address: int, set: bool):
+        if set != (address in self._breakpoints):
+            self.toggle_breakpoint(address)
+
 
     def disasm(self, address: int, num: int, type: str) -> list:
         if address % 2 == 1 or address < 0 or address >= Memory.SIZE:
@@ -122,9 +127,9 @@ class Emulator:
 
     def _fill_ROM(self):
         self._glyphs = ROMFiller.get_glyphs()
-        self._glyphs_start = self._memory.Part.ROM.end - len(self._glyphs["data"])*16
+        self._glyphs_start = self._memory.Part.ROM.end - len(self._glyphs["data"])*2
         for i, v in enumerate(self._glyphs["data"]):
-            self._memory.store(address=self._glyphs_start + i*16, size="word", value=v)
+            self._memory.store(address=self._glyphs_start + i*2, size="word", value=v)
 
     def _disasm_from_to(self, from_: int, to: int):
         tmp_ps = ProgramStatus()
