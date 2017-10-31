@@ -41,13 +41,18 @@ class Emulator:
                 break
 
     def toggle_breakpoint(self, address: int):
-        if address % 2 == 1:
+        if address % 2 == 1 or address < 0 or address >= Memory.SIZE:
             raise EmulatorOddBreakpoint()
 
         if address in self._breakpoints:
             self._breakpoints.remove(address)
         else:
             self._breakpoints.add(address)
+
+    def breakpoint(self, address: int, set: bool):
+        if set != (address in self._breakpoints):
+            self.toggle_breakpoint(address)
+
 
     def disasm(self, address: int, num: int, type: str) -> list:
         if address % 2 == 1 or address < 0 or address >= Memory.SIZE:

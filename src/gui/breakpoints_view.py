@@ -32,7 +32,7 @@ class BreakpointsView(QWidget):
 
         def send_breakpoint(self, state):
             self.set_checked(state == Qt.Checked)
-            self.emu.toggle_breakpoint(int(self.address.text(), 8))
+            self.emu.breakpoint(address=int(self.address.text(), 8), set=self.point.isChecked())
 
         def set_current(self, c: bool):
             if c:
