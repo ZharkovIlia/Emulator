@@ -6,7 +6,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPalette, QColor
 
 class BreakpointsView(QWidget):
-    class BreakpointLine(QWidget):
+    class BreakpointLine(QLabel):
         def __init__(self, emu: Emulator, address: str, data: str):
             super().__init__()
             self.emu = emu
@@ -27,10 +27,7 @@ class BreakpointsView(QWidget):
             layout.addWidget(self.data)
 
             self.setAutoFillBackground(True)
-            self.p = QPalette()
-            self.p.setColor(QPalette.Window, Qt.white)
-            self.setPalette(self.p)
-
+            self.setStyleSheet("background: white")
             self.setLayout(layout)
 
         def send_breakpoint(self, state):
@@ -39,18 +36,16 @@ class BreakpointsView(QWidget):
 
         def set_current(self, c: bool):
             if c:
-                self.p.setColor(QPalette.Window, QColor.fromRgb(150, 200, 250))
-                self.setPalette(self.p)
+                self.setStyleSheet("background: #96C8FA")
                 self.data.setStyleSheet("background: #96C8FA")
             else:
-                self.p.setColor(QPalette.Window, Qt.white)
-                self.setPalette(self.p)
-                self.data.setStyleSheet("")
+                self.setStyleSheet("background: white")
+                self.data.setStyleSheet("background: white")
 
         def set_checked(self, c: bool):
+            self.point.setChecked(c)
             if c:
-                self.p.setColor(QPalette.Window, QColor.fromRgb(250, 180, 190))
-                self.setPalette(self.p)
+                self.setStyleSheet("background: #FAB4BE")
                 self.data.setStyleSheet("background: #FAB4BE")
             else:
                 self.set_current(int(self.address.text(), 8) == self.emu.current_pc)
@@ -112,7 +107,7 @@ class BreakpointsView(QWidget):
             self.line_widgets[i].address.setText(format(add, self.add_format))
             self.line_widgets[i].data.setText(str(data))
             self.line_widgets[i].set_current(add == self.emu.current_pc)
-            self.change_box(self.line_widgets[i].point, data, breakpoint)
+            self.change_box(self.line_widgets[i], data, breakpoint)
 
     def move_down(self):
         add = int(self.line_widgets[1].address.text(), 8)
@@ -124,11 +119,11 @@ class BreakpointsView(QWidget):
             return
         self.fill(add, self.format_str)
 
-    def change_box(self, point: QCheckBox, data: DisasmInstruction, breakpoint: bool):
+    def change_box(self, line: BreakpointLine, data: DisasmInstruction, breakpoint: bool):
         if data.state is DisasmState.NOT_AN_INSTRUCTION:
-            point.setEnabled(False)
+            line.point.setEnabled(False)
         else:
-            point.setEnabled(True)
-        point.setEnabled(True)
+            line.point.setEnabled(True)
+        line.point.setEnabled(True)
 
-        point.setChecked(breakpoint)
+        line.set_checked(breakpoint)
