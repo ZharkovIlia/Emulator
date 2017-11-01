@@ -1139,7 +1139,7 @@ class InstanceCommand(enum.Enum):
     JSR  = (               r'0000100'    + _REG_PATTERN + _DEST_PATTERN, JSRCommand,  "JSR",  False)
     RTS  = (               r'0000000010000' + _REG_PATTERN,              RTSCommand,  "RTS",  False)
     MARK = (               r'0000110100' + _NUMBER_PATTERN,              MARKCommand, "MARK", False)
-    SOB  = (               r'0111111' + _REG_PATTERN + _SOB_OFFSET_PTRN, SOBCommand,  "SOB", False)
+    SOB  = (               r'0111111' + _REG_PATTERN + _SOB_OFFSET_PTRN, SOBCommand,  "SOB",  False)
 
     #BHIS = (               r'10000110'   + _OFFSET_PATTERN,              BHISCommand, "BHIS", False)
     #BLO  = (               r'10000111'   + _OFFSET_PATTERN,              BLOCommand,  "BLO",  False)

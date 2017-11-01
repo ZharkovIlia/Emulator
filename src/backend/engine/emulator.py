@@ -11,6 +11,8 @@ from src.backend.engine.cpu import CPU
 
 from bitarray import bitarray
 
+from src.backend.utils.routines import Routines
+
 
 class Emulator:
     def __init__(self):
@@ -129,6 +131,16 @@ class Emulator:
         self._glyphs_start = self._memory.Part.ROM.end - len(self._glyphs["data"])
         for i, v in enumerate(self._glyphs["data"]):
             self._memory.store(address=self._glyphs_start + i, size="byte", value=v)
+
+        draw_glyph = Routines.draw_glyph(glyphs_start=self._glyphs_start, glyph_width=self._glyphs["width"],
+                                         glyph_height=self._glyphs["max_height"],
+                                         glyph_bitmap_size=self._glyphs["bitmap_size"],
+                                         monitor_width=256, vram_start=Memory.Part.VRAM.start, monitor_depth=1)
+
+        for i, v in enumerate(draw_glyph):
+            self._memory.store(address=Memory.Part.ROM.start + i*2, size="word", value=v)
+
+        self._disasm_from_to(Memory.Part.ROM.start, Memory.Part.ROM.start + len(draw_glyph) * 2)
 
     def _disasm_from_to(self, from_: int, to: int):
         tmp_ps = ProgramStatus()
