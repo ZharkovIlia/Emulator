@@ -1,4 +1,5 @@
 from src.backend.model.commands import Commands
+from src.backend.utils.assembler import Assembler
 from src.backend.utils.exceptions import EmulatorOddBreakpoint, EmulatorWrongAddress, \
     UnknownCommand
 from src.backend.utils.disasm_instruction import DisasmInstruction, DisasmState
@@ -18,9 +19,13 @@ class Emulator:
     def __init__(self):
         self._memory = Memory()
         self._registers = list(Register() for _ in range(6))
-        self._registers.append(StackPointer())
-        self._registers.append(ProgramCounter())
-        self._registers[CPU.ProgramCounter].set(size="word", signed=False, value=Memory.Part.ROM.start)
+        self._pc = ProgramCounter()
+        self._sp = StackPointer()
+        self._registers.append(self._sp)
+        self._registers.append(self._pc)
+        self._pc.set(size="word", signed=False, value=Memory.Part.ROM.start)
+        self._sp.set_upper_bound(Memory.Part.RAM.end)
+        self._sp.set_lower_bound(256)
 
         self._program_status = ProgramStatus()
         self._cpu = CPU(memory=self._memory, registers=self._registers, program_status=self._program_status)
@@ -28,10 +33,7 @@ class Emulator:
         self._breakpoints = set()
         self._instructions = {}
 
-        self._start_instructions = Memory.Part.ROM.start
-        self._end_instructions = self._start_instructions
         self._fill_ROM()
-        self._disasm_from_to(self._start_instructions, self._end_instructions)
 
     def step(self):
         self._cpu.execute_next()
@@ -124,7 +126,7 @@ class Emulator:
 
     @property
     def current_pc(self) -> int:
-        return self._registers[CPU.ProgramCounter].get(size="word", signed=False)
+        return self._pc.get(size="word", signed=False)
 
     def _fill_ROM(self):
         self._glyphs = ROMFiller.get_glyphs()
@@ -132,15 +134,33 @@ class Emulator:
         for i, v in enumerate(self._glyphs["data"]):
             self._memory.store(address=self._glyphs_start + i, size="byte", value=v)
 
+        init = Routines.init(VRAM_start=Memory.Part.VRAM.start)
+        init_start = Memory.Part.ROM.start
+        init_end = init_start + len(init) * 2 + 4
+        for i, v in enumerate(init):
+            self._memory.store(address=init_start + i*2, size="word", value=v)
+
         draw_glyph = Routines.draw_glyph(glyphs_start=self._glyphs_start, glyph_width=self._glyphs["width"],
                                          glyph_height=self._glyphs["max_height"],
                                          glyph_bitmap_size=self._glyphs["bitmap_size"],
                                          monitor_width=256, vram_start=Memory.Part.VRAM.start, monitor_depth=1)
-
+        draw_glyph_start = init_end
+        draw_glyph_end = draw_glyph_start + len(draw_glyph) * 2
         for i, v in enumerate(draw_glyph):
-            self._memory.store(address=Memory.Part.ROM.start + i*2, size="word", value=v)
+            self._memory.store(address=draw_glyph_start + i*2, size="word", value=v)
 
-        self._disasm_from_to(Memory.Part.ROM.start, Memory.Part.ROM.start + len(draw_glyph) * 2)
+        mainloop = Routines.mainloop(draw_glyph_start=draw_glyph_start, glyph_width=self._glyphs["width"])
+        mainloop_start = draw_glyph_end
+        mainloop_end = mainloop_start + len(mainloop) * 2
+        for i, v in enumerate(mainloop):
+            self._memory.store(address=mainloop_start + i*2, size="word", value=v)
+
+        jump_to_mainloop = Assembler.assemble(["JMP @#{:o}".format(mainloop_start)])
+        self._memory.store(address=init_end - 4, size="word", value=jump_to_mainloop[0])
+        self._memory.store(address=init_end - 2, size="word", value=jump_to_mainloop[1])
+        print(len(jump_to_mainloop))
+
+        self._disasm_from_to(init_start, mainloop_end)
 
     def _disasm_from_to(self, from_: int, to: int):
         tmp_ps = ProgramStatus()

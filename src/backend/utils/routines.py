@@ -15,3 +15,15 @@ class Routines:
 
         return Assembler.assemble(content.splitlines())
 
+    @staticmethod
+    def mainloop(draw_glyph_start: int, glyph_width: int) -> list:
+        f = open("../../resource/assembler/mainloop")
+        content = f.read().format(draw_glyph_start=draw_glyph_start, glyph_width=glyph_width)
+        return Assembler.assemble(content.splitlines())
+
+    @staticmethod
+    def init(VRAM_start: int) -> list:
+        f = open("../../resource/assembler/init")
+        content = f.read().format(VRAM_start=VRAM_start)
+        return Assembler.assemble(content.splitlines())
+

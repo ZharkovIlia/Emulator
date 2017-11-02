@@ -7,7 +7,7 @@ from bitarray import bitarray
 _WHITESPACES_PATTERN = r'\s*'
 _REQUIRED_WHITESPACES_PATTERN = r'\s+'
 _MSB_PATTERN = r'(?P<msb>B?)'
-_OPERAND_PATTERN = r'(?P<{}>(?:\w|\(|\)|\#|\@|\-|\+)+)'
+_OPERAND_PATTERN = r'(?P<{}>(?:R|\d|\(|\)|\#|\@|\-|\+)+)'
 
 _REG_PATTERN = r'R(?P<{}>[0-7])'
 _NUMBER_PATTERN = r'(?P<{}>\-?\d+)'
