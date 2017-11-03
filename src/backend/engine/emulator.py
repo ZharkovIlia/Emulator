@@ -152,7 +152,9 @@ class Emulator:
         draw_glyph = Routines.draw_glyph(glyphs_start=self._glyphs_start, glyph_width=self._glyphs["width"],
                                          glyph_height=self._glyphs["max_height"],
                                          glyph_bitmap_size=self._glyphs["bitmap_size"],
-                                         monitor_width=256, vram_start=MemoryPart.VRAM.start, monitor_depth=1)
+                                         monitor_width=self._memory.video.mode.width,
+                                         video_start=MemoryPart.VRAM.start,
+                                         monitor_depth=self._memory.video.mode.depth)
         draw_glyph_start = init_end
         draw_glyph_end = draw_glyph_start + len(draw_glyph) * 2
         for i, v in enumerate(draw_glyph):
