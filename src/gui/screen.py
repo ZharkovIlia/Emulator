@@ -16,17 +16,14 @@ class Screen(QWidget):
         self.show_monitor(self.emulator.memory.video.image)
         self.emulator.memory.video.set_on_show(self.show_monitor)
 
-        start = QPushButton("run", self)
-        step = QPushButton("step", self)
-        stop = QPushButton("stop", self)
-
-        start.clicked.connect(self.start)
-        step.clicked.connect(self.step)
+        self.start = QPushButton("run", self)
+        self.step = QPushButton("step", self)
+        self.stop = QPushButton("stop", self)
 
         buttons = QHBoxLayout()
-        buttons.addWidget(start)
-        buttons.addWidget(step)
-        buttons.addWidget(stop)
+        buttons.addWidget(self.start)
+        buttons.addWidget(self.step)
+        buttons.addWidget(self.stop)
 
         layout = QGridLayout()
         layout.addWidget(self.screen, 1, 0, 3, 3)
@@ -36,9 +33,3 @@ class Screen(QWidget):
 
     def show_monitor(self, image: QImage):
         self.screen.setPixmap(QPixmap.fromImage(image))
-
-    def start(self):
-        self.emulator.run()
-
-    def step(self):
-        self.emulator.step()
