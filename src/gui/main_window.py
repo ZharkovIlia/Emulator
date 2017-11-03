@@ -14,14 +14,23 @@ class MainWindow(QWidget):
         self.initUI()
 
     def initUI(self):
-        viewer = CodeViewer(self.emulator)
-        screen = Screen(self.emulator)
+        self.viewer = CodeViewer(self.emulator)
+        self.screen = Screen(self.emulator)
         layout = QHBoxLayout()
-        layout.addWidget(screen)
-        layout.addWidget(viewer)
+        layout.addWidget(self.screen)
+        layout.addWidget(self.viewer)
+        self.screen.start.clicked.connect(self.start)
+        self.screen.step.clicked.connect(self.step)
         self.setLayout(layout)
         self.show()
 
+    def start(self):
+        self.emulator.run()
+        self.viewer.get_current()
+
+    def step(self):
+        self.emulator.step()
+        self.viewer.get_current()
 
 app = QApplication(sys.argv)
 window = MainWindow()
