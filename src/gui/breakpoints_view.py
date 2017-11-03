@@ -3,7 +3,7 @@ from src.backend.model.memory import Memory
 from src.backend.utils.disasm_instruction import DisasmInstruction, DisasmState
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPalette, QColor
+
 
 class BreakpointsView(QWidget):
     class BreakpointLine(QLabel):
@@ -86,9 +86,11 @@ class BreakpointsView(QWidget):
         wlay.setStyleSheet("#kyky{border: 7px solid white}")
 
         up = QPushButton("up")
+        up.setAutoRepeat(True)
         up.clicked.connect(self.move_up)
 
         down = QPushButton("down")
+        down.setAutoRepeat(True)
         down.clicked.connect(self.move_down)
 
         buttons = QVBoxLayout()

@@ -6,7 +6,6 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
 
 
-
 class CodeViewer(QWidget):
     def __init__(self, emulator):
         super().__init__()
@@ -22,7 +21,7 @@ class CodeViewer(QWidget):
 
         format_label = QLabel('Data type')
         self.format_box = QComboBox()
-        self.format_box.addItems(['octal', 'instructions'])
+        self.format_box.addItems(['instructions', 'octal'])
 
         self.go_to_pc = QPushButton('Go to current pc', self)
 

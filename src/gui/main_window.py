@@ -1,6 +1,7 @@
 from src.backend.engine.emulator import Emulator
 from src.gui.code_viewer import CodeViewer
 from src.gui.screen import Screen
+from src.gui.registers import RegisterWindow
 
 import sys
 
@@ -15,10 +16,17 @@ class MainWindow(QWidget):
 
     def initUI(self):
         self.viewer = CodeViewer(self.emulator)
+        self.registers = RegisterWindow(self.emulator)
         self.screen = Screen(self.emulator)
+
+        right_part = QVBoxLayout()
+        right_part.addWidget(self.registers)
+        right_part.addWidget(self.viewer)
+
         layout = QHBoxLayout()
         layout.addWidget(self.screen)
-        layout.addWidget(self.viewer)
+        layout.addLayout(right_part)
+
         self.screen.start.clicked.connect(self.start)
         self.screen.step.clicked.connect(self.step)
         self.setLayout(layout)
@@ -27,11 +35,16 @@ class MainWindow(QWidget):
     def start(self):
         self.emulator.run()
         self.viewer.get_current()
+        self.registers.update()
 
     def step(self):
         self.emulator.step()
         self.viewer.get_current()
+        self.registers.update()
+
 
 app = QApplication(sys.argv)
 window = MainWindow()
+
 sys.exit(app.exec_())
+

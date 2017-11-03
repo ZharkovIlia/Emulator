@@ -12,7 +12,6 @@ class Screen(QWidget):
 
     def initUI(self):
         self.screen = QLabel()
-        self.screen.setStyleSheet("border: 2px solid black")
         self.show_monitor(self.emulator.memory.video.image)
 
         self.start = QPushButton("run", self)
