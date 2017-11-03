@@ -1,0 +1,105 @@
+# R0, R1, R2 are caller saved
+# R3, R4, R5 are callee saved
+
+#integer constants: glyphs_start, glyph_width, glyph_height, glyph_bitmap_size,
+#                    monitor_width, vram_start, monitor_depth,
+#                   monitor_width_div_8_mul_monitor_depth = monitor_width / 8 * monitor_depth
+
+# R0 is cursor_x
+# R1 is cursor_y
+# R2 is glyph_index
+
+MOV R3, -(R6)
+MOV R4, -(R6)
+MOV R5, -(R6)
+
+MOV #{glyphs_start:o}, R4
+MOV R2, R5
+MUL #{glyph_bitmap_size:o}, R5
+ADD R5, R4
+
+# some kind of function
+BR 0100
+MOV R2, -(R6)
+MOV R5, -(R6)
+
+MOV #{glyph_width:o}, -(R6)
+MOV #{glyph_height:o}, -(R6)
+
+SUB #4, R6
+MOV #0200, R0
+
+MOV #0, 2(R6)
+
+MOV #0, (R6)
+
+BITB R0, (R4)
+BNE 012
+# color is 'white'
+MOV #{monitor_depth:o}, R3
+BISB R2, (R5)
+ASR R2
+BNE 3
+MOV #0200, R2
+INC R5
+SOB R3, 7
+BR 011
+# color is 'black'
+MOV #{monitor_depth:o}, R3
+BICB R2, (R5)
+ASR R2
+BNE 3
+MOV #0200, R2
+INC R5
+SOB R3, 7
+
+# vram changed
+ASR R0
+BNE 3
+MOV #0200, R0
+INC R4
+
+INC (R6)
+CMP (R6), 6(R6)
+BNE -037
+
+ADD #{monitor_width_div_8_mul_monitor_depth:o}, 010(R6)
+MOV 010(R6), R5
+MOV 012(R6), R2
+INC 2(R6)
+CMP 2(R6), 4(R6)
+BNE -054
+
+ADD #14, R6
+
+MOV (R6)+, R5
+MOV (R6)+, R4
+MOV (R6)+, R3
+RTS R5
+
+
+# some kind of function
+MOV #{vram_start:o}, R5
+MUL #{monitor_width_div_8_mul_monitor_depth:o}, R1
+ADD R1, R5
+MOV R0, R1
+MUL #{monitor_depth:o}, R1
+MOV R0, R2
+MOV #{monitor_depth:o}, R0
+
+CMP #10, R0
+BEQ 3
+ASL R0
+ASR R2
+BR -05
+
+ADD R2, R5
+MUL #010, R2
+SUB R2, R1
+MOV #0200, R2
+TST R1
+BEQ 2
+ASR R2
+SOB R1, 2
+
+BR -135

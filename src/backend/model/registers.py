@@ -167,3 +167,35 @@ class StackPointer(OnlyEvenValueRegister):
 class ProgramCounter(OnlyEvenValueRegister):
     def __init__(self):
         super(ProgramCounter, self).__init__()
+
+
+class MemoryRegister(Register):
+    def __init__(self, address: int):
+        super(MemoryRegister, self).__init__()
+        self._address = address
+
+    def load(self, address: int, size: str) -> bitarray:
+        assert (address // 2) * 2 == self._address and (size == 'byte' or address % 2 == 0)
+        if size == 'byte' and address % 2 == 1:
+            self.reverse()
+
+        bitarr = self.byte() if size == 'byte' else self.word()
+
+        if size == 'byte' and address % 2 == 1:
+            self.reverse()
+
+        return bitarr
+
+    def store(self, address: int, size: str, value: bitarray) -> None:
+        assert (address // 2) * 2 == self._address and (size == 'byte' or address % 2 == 0)
+        if size == 'byte' and address % 2 == 1:
+            self.reverse()
+
+        self.set_byte(value=value) if size == 'byte' else self.set_word(value=value)
+
+        if size == 'byte' and address % 2 == 1:
+            self.reverse()
+
+    @property
+    def address(self):
+        return self._address

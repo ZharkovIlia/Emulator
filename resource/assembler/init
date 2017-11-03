@@ -1,0 +1,3 @@
+#integer constants: VRAM_start
+
+MOV #{VRAM_start:o}, R6
