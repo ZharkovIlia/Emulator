@@ -17,7 +17,7 @@ from src.backend.utils.routines import Routines
 
 
 class Emulator:
-    def __init__(self, video_on_show: None):
+    def __init__(self, video_on_show=None):
         self._memory = Memory()
         self._memory.video.set_on_show(video_on_show)
 
