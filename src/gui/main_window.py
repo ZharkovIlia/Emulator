@@ -9,10 +9,10 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
 
 
-class MainWindow(QWidget):
-    def __init__(self):
+class CodeViewer(QWidget):
+    def __init__(self, emulator):
         super().__init__()
-        self.emulator = Emulator()
+        self.emulator = emulator
         self.setWindowTitle("Emulator")
         self.initUI()
 
@@ -51,8 +51,6 @@ class MainWindow(QWidget):
         self.setLayout(self.editor_layout)
         self.center()
 
-        self.show()
-
     def center(self):
         qr = self.frameGeometry()
         cp = QDesktopWidget().availableGeometry().center()
@@ -77,9 +75,25 @@ class MainWindow(QWidget):
                                 err.__str__() + error_text,
                                 QMessageBox.Ok,
                                 QMessageBox.Ok)
+
     def get_current(self):
         self.address_editor.setText(format(self.emulator.current_pc, 'o'))
         self.get_address()
+
+
+class MainWindow(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.emulator = Emulator()
+        self.initUI()
+
+    def initUI(self):
+        viewer = CodeViewer(self.emulator)
+        layout = QHBoxLayout()
+        layout.addWidget(viewer)
+        self.setLayout(layout)
+        self.show()
+
 
 app = QApplication(sys.argv)
 window = MainWindow()

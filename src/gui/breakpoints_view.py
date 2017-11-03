@@ -130,6 +130,5 @@ class BreakpointsView(QWidget):
             line.point.setEnabled(False)
         else:
             line.point.setEnabled(True)
-        line.point.setEnabled(True)
 
         line.set_checked(breakpoint)
