@@ -16,8 +16,10 @@ from src.backend.utils.routines import Routines
 
 
 class Emulator:
-    def __init__(self):
+    def __init__(self, video_on_show: None):
         self._memory = Memory()
+        self._memory.video.set_on_show(video_on_show)
+
         self._registers = list(Register() for _ in range(6))
         self._pc = ProgramCounter()
         self._sp = StackPointer()
@@ -37,12 +39,15 @@ class Emulator:
 
     def step(self):
         self._cpu.execute_next()
+        self._memory.video.show()
 
     def run(self):
         while True:
             self._cpu.execute_next()
             if self.current_pc in self._breakpoints:
                 break
+
+        self._memory.video.show()
 
     def toggle_breakpoint(self, address: int):
         if address % 2 == 1 or address < 0 or address >= Memory.SIZE:

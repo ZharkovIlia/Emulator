@@ -14,6 +14,7 @@ class Screen(QWidget):
         self.screen = QLabel()
         self.screen.setStyleSheet("border: 2px solid black")
         self.show_monitor(self.emulator.memory.video.image)
+        self.emulator.memory.video.set_on_show(self.show_monitor)
 
         start = QPushButton("run", self)
         step = QPushButton("step", self)
