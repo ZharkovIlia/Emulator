@@ -19,11 +19,6 @@ class EmulatorWrongAddress(EmulatorException):
         super(EmulatorWrongAddress, self).__init__(what="Address {} is wrong".format(address))
 
 
-class EmulatorBreakpointNotInROM(EmulatorException):
-    def __init__(self):
-        super(EmulatorBreakpointNotInROM, self).__init__("Address of breakpoint is not in ROM")
-
-
 class MemoryException(EmulatorException):
     def __init__(self, what: str):
         super(MemoryException, self).__init__(what)
@@ -37,6 +32,11 @@ class MemoryIndexOutOfBound(MemoryException):
 class MemoryOddAddressing(MemoryException):
     def __init__(self):
         super(MemoryOddAddressing, self).__init__("Odd addressing error")
+
+
+class MemoryWrongConfiguration(MemoryException):
+    def __init__(self):
+        super(MemoryWrongConfiguration, self).__init__(what="Wrong layout of memory and devices")
 
 
 class RegisterException(EmulatorException):
@@ -99,3 +99,13 @@ class OperandWrongPCMode(CommandException):
 class CommandJMPToRegister(CommandException):
     def __init__(self):
         super(CommandJMPToRegister, self).__init__(what="Cannot jump to register")
+
+
+class VideoException(EmulatorException):
+    def __init__(self, what: str):
+        super(VideoException, self).__init__(what)
+
+
+class VideoWrongMode(VideoException):
+    def __init__(self):
+        super(VideoWrongMode, self).__init__(what="Wrong video mode")
