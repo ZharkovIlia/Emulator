@@ -22,8 +22,14 @@ class Routines:
         return Assembler.assemble(content.splitlines())
 
     @staticmethod
-    def init(VRAM_start: int) -> list:
+    def init(VRAM_start: int, video_register_mode_start_address: int, video_register_offset_address: int,
+             video_mode: int, video_start: int) -> list:
+        assert video_start % 4 == 0, "Wrong configuration"
         f = open("../../resource/assembler/init")
-        content = f.read().format(VRAM_start=VRAM_start)
+        content = f.read().format(VRAM_start=VRAM_start,
+                                  video_register_mode_start_address=video_register_mode_start_address,
+                                  video_register_offset_address=video_register_offset_address,
+                                  video_mode=video_mode, video_start=video_start)
+
         return Assembler.assemble(content.splitlines())
 
