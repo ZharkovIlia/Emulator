@@ -1,4 +1,5 @@
 from src.backend.model.commands import Commands
+from src.backend.model.video import VideoModes
 from src.backend.utils.assembler import Assembler
 from src.backend.utils.exceptions import EmulatorOddBreakpoint, EmulatorWrongAddress, \
     UnknownCommand
@@ -16,8 +17,10 @@ from src.backend.utils.routines import Routines
 
 
 class Emulator:
-    def __init__(self):
+    def __init__(self, video_on_show=None):
         self._memory = Memory()
+        self._memory.video.set_on_show(video_on_show)
+
         self._registers = list(Register() for _ in range(6))
         self._pc = ProgramCounter()
         self._sp = StackPointer()
@@ -37,12 +40,15 @@ class Emulator:
 
     def step(self):
         self._cpu.execute_next()
+        self._memory.video.show()
 
     def run(self):
         while True:
             self._cpu.execute_next()
             if self.current_pc in self._breakpoints:
                 break
+
+        self._memory.video.show()
 
     def toggle_breakpoint(self, address: int):
         if address % 2 == 1 or address < 0 or address >= Memory.SIZE:
@@ -134,7 +140,10 @@ class Emulator:
         for i, v in enumerate(self._glyphs["data"]):
             self._memory.store(address=self._glyphs_start + i, size="byte", value=v)
 
-        init = Routines.init(VRAM_start=MemoryPart.VRAM.start)
+        init = Routines.init(VRAM_start=MemoryPart.VRAM.start,
+                             video_register_mode_start_address=self._memory.video_register_mode_start_address,
+                             video_register_offset_address=self._memory.video_register_offset_address,
+                             video_mode=VideoModes.MODE_O.mode, video_start=MemoryPart.VRAM.start)
         init_start = MemoryPart.ROM.start
         init_end = init_start + len(init) * 2 + 4
         for i, v in enumerate(init):
@@ -143,7 +152,9 @@ class Emulator:
         draw_glyph = Routines.draw_glyph(glyphs_start=self._glyphs_start, glyph_width=self._glyphs["width"],
                                          glyph_height=self._glyphs["max_height"],
                                          glyph_bitmap_size=self._glyphs["bitmap_size"],
-                                         monitor_width=256, vram_start=MemoryPart.VRAM.start, monitor_depth=1)
+                                         monitor_width=self._memory.video.mode.width,
+                                         video_start=MemoryPart.VRAM.start,
+                                         monitor_depth=self._memory.video.mode.depth)
         draw_glyph_start = init_end
         draw_glyph_end = draw_glyph_start + len(draw_glyph) * 2
         for i, v in enumerate(draw_glyph):
@@ -158,7 +169,6 @@ class Emulator:
         jump_to_mainloop = Assembler.assemble(["JMP @#{:o}".format(mainloop_start)])
         self._memory.store(address=init_end - 4, size="word", value=jump_to_mainloop[0])
         self._memory.store(address=init_end - 2, size="word", value=jump_to_mainloop[1])
-        print(len(jump_to_mainloop))
 
         self._disasm_from_to(init_start, mainloop_end)
 

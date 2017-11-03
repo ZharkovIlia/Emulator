@@ -13,6 +13,7 @@ class Screen(QWidget):
     def initUI(self):
         self.screen = QLabel()
         self.show_monitor(self.emulator.memory.video.image)
+        self.emulator.memory.video.set_on_show(self.show_monitor)
 
         self.start = QPushButton("run", self)
         self.step = QPushButton("step", self)

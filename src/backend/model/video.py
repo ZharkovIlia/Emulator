@@ -29,10 +29,10 @@ class VideoMemoryRegisterOffset(MemoryRegister):
         return int(self._data[7:16].to01(), 2)
 
 
-class Modes(enum.Enum):
+class VideoModes(enum.Enum):
     MODE_O = (0, 256, 256, 1, {
-        0: qRgb(255, 255, 255),
-        1: qRgb(0, 0, 0)
+        0: qRgb(0, 0, 0),
+        1: qRgb(255, 255, 255)
     })
 
     def __init__(self, mode: int, height: int, width: int, depth: int, color_table: dict):
@@ -46,7 +46,7 @@ class Modes(enum.Enum):
 class VideoMemory:
     def __init__(self, VRAM_start, on_show=None):
         self._on_show = on_show
-        self._mode: Modes = None
+        self._mode: VideoModes = None
         self._image: QImage = None
         self._offset = 0
         self._size: int = None
@@ -55,19 +55,26 @@ class VideoMemory:
         self.set_mode(0)
 
     def set_mode(self, mode: int):
-        if mode not in (md.mode for md in list(Modes)):
+        if mode not in (md.mode for md in list(VideoModes)):
             raise VideoWrongMode()
 
         if self._mode is not None and mode == self._mode.mode:
             return
-        for md in list(Modes):
+        for md in list(VideoModes):
             if md.mode == mode:
                 self._mode = md
 
         self._image = QImage(self._mode.width, self._mode.height, QImage.Format_Indexed8)
         for k, v in self._mode.color_table.items():
             self._image.setColor(k, v)
-        self._image.fill(0)
+        white = qRgb(255, 255, 255)
+        white_index = None
+        for index, color in self._mode.color_table.items():
+            if color == white:
+                white_index = index
+                break
+        if white_index is not None:
+            self._image.fill(white_index)
 
         assert self._mode.width * self._mode.height * self._mode.depth % 16 == 0, "Wrong configuration"
         assert self._mode.width * self._mode.depth % 8 == 0, "Wrong configuration"
@@ -127,7 +134,11 @@ class VideoMemory:
 
     def show(self):
         if self._on_show is not None:
-            self._on_show()
+            self._on_show(self._image)
+
+    @property
+    def mode(self):
+        return self._mode
 
     @property
     def size(self):
@@ -144,7 +155,7 @@ class VideoMemory:
     def _get_pixels_by_address(self, address: int) -> list:
         result = []
         relative = address - self._VRAM_start
-        pixels = relative * 8 / self._mode.depth
+        pixels = relative * 8 // self._mode.depth
         y = pixels // self._mode.width
         x = pixels % self._mode.width
         for _ in range(8 // self._mode.depth):
