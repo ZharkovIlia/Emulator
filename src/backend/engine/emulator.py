@@ -5,7 +5,7 @@ from src.backend.utils.exceptions import EmulatorOddBreakpoint, EmulatorWrongAdd
 from src.backend.utils.disasm_instruction import DisasmInstruction, DisasmState
 from src.backend.utils.romfiller import ROMFiller
 
-from src.backend.model.memory import Memory
+from src.backend.model.memory import Memory, MemoryPart
 from src.backend.model.registers import Register, StackPointer, ProgramCounter
 from src.backend.model.programstatus import ProgramStatus
 from src.backend.engine.cpu import CPU
@@ -23,8 +23,8 @@ class Emulator:
         self._sp = StackPointer()
         self._registers.append(self._sp)
         self._registers.append(self._pc)
-        self._pc.set(size="word", signed=False, value=Memory.Part.ROM.start)
-        self._sp.set_upper_bound(Memory.Part.RAM.end)
+        self._pc.set(size="word", signed=False, value=MemoryPart.ROM.start)
+        self._sp.set_upper_bound(MemoryPart.RAM.end)
         self._sp.set_lower_bound(256)
 
         self._program_status = ProgramStatus()
@@ -130,12 +130,12 @@ class Emulator:
 
     def _fill_ROM(self):
         self._glyphs = ROMFiller.get_glyphs()
-        self._glyphs_start = self._memory.Part.ROM.end - len(self._glyphs["data"])
+        self._glyphs_start = MemoryPart.ROM.end - len(self._glyphs["data"])
         for i, v in enumerate(self._glyphs["data"]):
             self._memory.store(address=self._glyphs_start + i, size="byte", value=v)
 
-        init = Routines.init(VRAM_start=Memory.Part.VRAM.start)
-        init_start = Memory.Part.ROM.start
+        init = Routines.init(VRAM_start=MemoryPart.VRAM.start)
+        init_start = MemoryPart.ROM.start
         init_end = init_start + len(init) * 2 + 4
         for i, v in enumerate(init):
             self._memory.store(address=init_start + i*2, size="word", value=v)
@@ -143,7 +143,7 @@ class Emulator:
         draw_glyph = Routines.draw_glyph(glyphs_start=self._glyphs_start, glyph_width=self._glyphs["width"],
                                          glyph_height=self._glyphs["max_height"],
                                          glyph_bitmap_size=self._glyphs["bitmap_size"],
-                                         monitor_width=256, vram_start=Memory.Part.VRAM.start, monitor_depth=1)
+                                         monitor_width=256, vram_start=MemoryPart.VRAM.start, monitor_depth=1)
         draw_glyph_start = init_end
         draw_glyph_end = draw_glyph_start + len(draw_glyph) * 2
         for i, v in enumerate(draw_glyph):

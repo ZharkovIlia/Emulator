@@ -11,7 +11,7 @@ class Routines:
         content = f.read().format(glyphs_start=glyphs_start, glyph_height=glyph_height, glyph_width=glyph_width,
                                   glyph_bitmap_size=glyph_bitmap_size, monitor_width=monitor_width,
                                   monitor_depth=monitor_depth, vram_start=vram_start,
-                                  monitor_width_div_8_mul_monitor_depth=monitor_width // 8 * monitor_depth)
+                                  monitor_width_div_8_mul_monitor_depth=monitor_width * monitor_depth // 8)
 
         return Assembler.assemble(content.splitlines())
 

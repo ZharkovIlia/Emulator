@@ -34,6 +34,11 @@ class MemoryOddAddressing(MemoryException):
         super(MemoryOddAddressing, self).__init__("Odd addressing error")
 
 
+class MemoryWrongConfiguration(MemoryException):
+    def __init__(self):
+        super(MemoryWrongConfiguration, self).__init__(what="Wrong layout of memory and devices")
+
+
 class RegisterException(EmulatorException):
     def __init__(self, what: str):
         super(RegisterException, self).__init__(what)
@@ -94,3 +99,13 @@ class OperandWrongPCMode(CommandException):
 class CommandJMPToRegister(CommandException):
     def __init__(self):
         super(CommandJMPToRegister, self).__init__(what="Cannot jump to register")
+
+
+class VideoException(EmulatorException):
+    def __init__(self, what: str):
+        super(VideoException, self).__init__(what)
+
+
+class VideoWrongMode(VideoException):
+    def __init__(self):
+        super(VideoWrongMode, self).__init__(what="Wrong video mode")
