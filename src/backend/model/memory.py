@@ -1,6 +1,6 @@
 from src.backend.utils.exceptions import MemoryException, MemoryIndexOutOfBound, MemoryOddAddressing, \
     MemoryWrongConfiguration
-from src.backend.model.video import VideoMemory, VideoMemoryRegisterModeStart, VideoMemoryRegisterOffset
+from src.backend.model.video import VideoMemory, VideoMemoryRegisterModeStart, VideoMemoryRegisterOffset, VideoModes
 from bitarray import bitarray
 import enum
 
@@ -39,7 +39,7 @@ class Memory:
         self._video_register_mode_start.set_word(value=bitarray("00" + "{:014b}".format(MemoryPart.VRAM.start // 4),
                                                                 endian='big'))
         self._video.set_VRAM_start(MemoryPart.VRAM.start)
-        self._video.set_mode(0)
+        self._video.set_mode(VideoModes.MODE_O.mode)
 
         self._video_register_offset = VideoMemoryRegisterOffset(self._start_io + 2)
         self._video_register_offset.set(size="word", signed=False, value=0)
@@ -76,7 +76,7 @@ class Memory:
 
     @property
     def video_register_mode_start_address(self) -> int:
-        return self._video_register_offset.address
+        return self._video_register_mode_start.address
 
     @property
     def video_register_offset_address(self) -> int:

@@ -1,4 +1,5 @@
 from src.backend.model.commands import Commands
+from src.backend.model.video import VideoModes
 from src.backend.utils.assembler import Assembler
 from src.backend.utils.exceptions import EmulatorOddBreakpoint, EmulatorWrongAddress, \
     UnknownCommand
@@ -134,7 +135,10 @@ class Emulator:
         for i, v in enumerate(self._glyphs["data"]):
             self._memory.store(address=self._glyphs_start + i, size="byte", value=v)
 
-        init = Routines.init(VRAM_start=MemoryPart.VRAM.start)
+        init = Routines.init(VRAM_start=MemoryPart.VRAM.start,
+                             video_register_mode_start_address=self._memory.video_register_mode_start_address,
+                             video_register_offset_address=self._memory.video_register_offset_address,
+                             video_mode=VideoModes.MODE_O.mode, video_start=MemoryPart.VRAM.start)
         init_start = MemoryPart.ROM.start
         init_end = init_start + len(init) * 2 + 4
         for i, v in enumerate(init):
@@ -158,7 +162,6 @@ class Emulator:
         jump_to_mainloop = Assembler.assemble(["JMP @#{:o}".format(mainloop_start)])
         self._memory.store(address=init_end - 4, size="word", value=jump_to_mainloop[0])
         self._memory.store(address=init_end - 2, size="word", value=jump_to_mainloop[1])
-        print(len(jump_to_mainloop))
 
         self._disasm_from_to(init_start, mainloop_end)
 
