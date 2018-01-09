@@ -29,7 +29,7 @@ class VideoMemoryRegisterOffset(MemoryRegister):
         return int(self._data[7:16].to01(), 2)
 
 
-class VideoModes(enum.Enum):
+class VideoMode(enum.Enum):
     MODE_O = (0, 256, 256, 1, {
         0: qRgb(0, 0, 0),
         1: qRgb(255, 255, 255)
@@ -46,7 +46,7 @@ class VideoModes(enum.Enum):
 class VideoMemory:
     def __init__(self, VRAM_start, on_show=None):
         self._on_show = on_show
-        self._mode: VideoModes = None
+        self._mode: VideoMode = None
         self._image: QImage = None
         self._offset = 0
         self._size: int = None
@@ -55,12 +55,12 @@ class VideoMemory:
         self.set_mode(0)
 
     def set_mode(self, mode: int):
-        if mode not in (md.mode for md in list(VideoModes)):
+        if mode not in (md.mode for md in list(VideoMode)):
             raise VideoWrongMode()
 
         if self._mode is not None and mode == self._mode.mode:
             return
-        for md in list(VideoModes):
+        for md in list(VideoMode):
             if md.mode == mode:
                 self._mode = md
 

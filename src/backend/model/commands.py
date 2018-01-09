@@ -1057,7 +1057,7 @@ class SOBCommand(BranchCommand):
         super(SOBCommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = self._inner_ps.get(bit='Z') is True
+        self._if_branch = self._inner_ps.get(bit='Z') is False
 
     def _extract_offset(self):
         tmp = bitarray("00", endian='big')

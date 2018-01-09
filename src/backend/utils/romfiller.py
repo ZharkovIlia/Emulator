@@ -4,9 +4,9 @@ from bitarray import bitarray
 
 class ROMFiller:
     @staticmethod
-    def get_glyphs() -> dict:
+    def get_glyphs(size: int) -> dict:
         alphabet = "abcdefghijklmnopqrstuvwxyz"
-        font = ImageFont.truetype("../../../resource/FreeMono.ttf", size=20)
+        font = ImageFont.truetype("../../../resource/FreeMono.ttf", size=size)
         width, min_height = font.getsize(text='a')
         max_height = min_height
         for alpha in alphabet:

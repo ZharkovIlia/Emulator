@@ -1,0 +1,38 @@
+# R0, R1, R2 are caller saved
+# R3, R4, R5 are callee saved
+
+#integer constants: glyphs_start, glyph_height, glyph_bitmap_size,
+#                   monitor_width_div_8, video_start
+
+# R0 is x glyph position
+# R1 is y glyph position
+# R2 is glyph index
+
+MOV R3, -(R6)
+MOV R4, -(R6)
+MOV R5, -(R6)
+
+MOV #{glyphs_start:o}, R4
+MOV R2, R5
+MUL #{glyph_bitmap_size:o}, R5
+ADD R5, R4
+
+MOV #{video_start:o}, R5
+MUL #{monitor_width_div_8:o}, R1
+ADD R1, R5
+ASL R0
+ADD R0, R5
+
+MOV #{glyph_height:o}, R3
+
+MOV (R4), R2
+COM R2
+MOV R2, (R5)
+ADD #02, R4
+ADD #{monitor_width_div_8:o}, R5
+SOB R3, 010
+
+MOV (R6)+, R5
+MOV (R6)+, R4
+MOV (R6)+, R3
+RTS R5

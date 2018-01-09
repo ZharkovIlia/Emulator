@@ -1,5 +1,5 @@
 from src.backend.model.commands import Commands
-from src.backend.model.video import VideoModes
+from src.backend.model.video import VideoMode
 from src.backend.utils.assembler import Assembler
 from src.backend.utils.exceptions import EmulatorOddBreakpoint, EmulatorWrongAddress, \
     UnknownCommand
@@ -135,7 +135,7 @@ class Emulator:
         return self._pc.get(size="word", signed=False)
 
     def _fill_ROM(self):
-        self._glyphs = ROMFiller.get_glyphs()
+        self._glyphs = ROMFiller.get_glyphs(size=26)
         self._glyphs_start = MemoryPart.ROM.end - len(self._glyphs["data"])
         for i, v in enumerate(self._glyphs["data"]):
             self._memory.store(address=self._glyphs_start + i, size="byte", value=v)
@@ -143,24 +143,24 @@ class Emulator:
         init = Routines.init(VRAM_start=MemoryPart.VRAM.start,
                              video_register_mode_start_address=self._memory.video_register_mode_start_address,
                              video_register_offset_address=self._memory.video_register_offset_address,
-                             video_mode=VideoModes.MODE_O.mode, video_start=MemoryPart.VRAM.start)
+                             video_mode=VideoMode.MODE_O.mode, video_start=MemoryPart.VRAM.start)
         init_start = MemoryPart.ROM.start
         init_end = init_start + len(init) * 2 + 4
         for i, v in enumerate(init):
             self._memory.store(address=init_start + i*2, size="word", value=v)
 
-        draw_glyph = Routines.draw_glyph(glyphs_start=self._glyphs_start, glyph_width=self._glyphs["width"],
-                                         glyph_height=self._glyphs["max_height"],
-                                         glyph_bitmap_size=self._glyphs["bitmap_size"],
-                                         monitor_width=self._memory.video.mode.width,
-                                         video_start=MemoryPart.VRAM.start,
-                                         monitor_depth=self._memory.video.mode.depth)
+        draw_glyph = Routines.draw_glyph_16_mode_0(glyphs_start=self._glyphs_start, glyph_width=self._glyphs["width"],
+                                                   glyph_height=self._glyphs["max_height"],
+                                                   glyph_bitmap_size=self._glyphs["bitmap_size"],
+                                                   monitor_width=self._memory.video.mode.width,
+                                                   video_start=MemoryPart.VRAM.start,
+                                                   monitor_depth=self._memory.video.mode.depth)
         draw_glyph_start = init_end
         draw_glyph_end = draw_glyph_start + len(draw_glyph) * 2
         for i, v in enumerate(draw_glyph):
             self._memory.store(address=draw_glyph_start + i*2, size="word", value=v)
 
-        mainloop = Routines.mainloop(draw_glyph_start=draw_glyph_start, glyph_width=self._glyphs["width"])
+        mainloop = Routines.mainloop_16_mode_0(draw_glyph_start=draw_glyph_start, glyph_width=self._glyphs["width"])
         mainloop_start = draw_glyph_end
         mainloop_end = mainloop_start + len(mainloop) * 2
         for i, v in enumerate(mainloop):
