@@ -371,6 +371,11 @@ class BranchCommand(AbstractCommand):
         raise NotImplementedError()
 
 
+class JumpCommand(AbstractCommand):
+    def __init__(self, **kwargs):
+        super(JumpCommand, self).__init__(**kwargs)
+
+
 class MULCommand(AbstractCommand):
     def __init__(self, matcher, **kwargs):
         super(MULCommand, self).__init__(**kwargs)
@@ -415,7 +420,7 @@ class MULCommand(AbstractCommand):
                                      "value": self._additional_reg.word})
 
 
-class JMPCommand(AbstractCommand):
+class JMPCommand(JumpCommand):
     def __init__(self, matcher, **kwargs):
         super(JMPCommand, self).__init__(**kwargs)
         dest_reg = matcher.group("destreg")
@@ -430,11 +435,13 @@ class JMPCommand(AbstractCommand):
         self._add_jump()
 
     def _add_jump(self):
-        self._operations.append({"operation": Operation.JUMP,
-                                 "address": lambda: self.dest_operand.inner_register.get(size="word", signed=False)})
+        self._operations.append({"operation": Operation.STORE_REGISTER,
+                                 "register": 7,
+                                 "size": "word",
+                                 "value": lambda: self.dest_operand.inner_register.word()})
 
 
-class JSRCommand(AbstractCommand):
+class JSRCommand(JumpCommand):
     def __init__(self, matcher, **kwargs):
         super(JSRCommand, self).__init__(**kwargs)
 
@@ -471,11 +478,13 @@ class JSRCommand(AbstractCommand):
         self._operations.extend(tmp_subcommand._operations)
 
     def _add_jump(self):
-        self._operations.append({"operation": Operation.JUMP,
-                                 "address": lambda: self.dest_operand.inner_register.get(size="word", signed=False)})
+        self._operations.append({"operation": Operation.STORE_REGISTER,
+                                 "register": 7,
+                                 "size": "word",
+                                 "value": lambda: self.dest_operand.inner_register.word()})
 
 
-class RTSCommand(AbstractCommand):
+class RTSCommand(JumpCommand):
     def __init__(self, matcher, **kwargs):
         super(RTSCommand, self).__init__(**kwargs)
 
@@ -498,11 +507,13 @@ class RTSCommand(AbstractCommand):
         self._operations.extend(self._subcommand._operations)
 
     def _add_jump(self):
-        self._operations.append({"operation": Operation.JUMP,
-                                 "address": lambda: self.src_operand.inner_register.get(size="word", signed=False)})
+        self._operations.append({"operation": Operation.STORE_REGISTER,
+                                 "register": 7,
+                                 "size": "word",
+                                 "value": lambda: self.src_operand.inner_register.word()})
 
 
-class MARKCommand(AbstractCommand):
+class MARKCommand(JumpCommand):
     def __init__(self, matcher, **kwargs):
         super(MARKCommand, self).__init__(**kwargs)
 
@@ -526,11 +537,8 @@ class MARKCommand(AbstractCommand):
                                  "callback": self._tmp_sp.set_word})
 
     def _add_increment_sp(self):
-        def callback():
-            value = self._tmp_sp.get(size="word", signed=False)
-            self._tmp_sp.set(size="word", signed=False, value=value + self._number * 2)
         self._operations.append({"operation": Operation.EXECUTE,
-                                 "callback": callback})
+                                 "callback": lambda: self._tmp_sp.inc(value=self._number * 2)})
 
     def _add_store_sp(self):
         self._operations.append({"operation": Operation.STORE_REGISTER,
@@ -546,8 +554,10 @@ class MARKCommand(AbstractCommand):
                                  "callback": self._tmp_r5.set_word})
 
     def _add_jump(self):
-        self._operations.append({"operation": Operation.JUMP,
-                                 "address": lambda: self._tmp_r5.get(size="word", signed=False)})
+        self._operations.append({"operation": Operation.STORE_REGISTER,
+                                 "register": 7,
+                                 "size": "word",
+                                 "value": lambda: self._tmp_r5.word()})
 
     def _add_pop_from_stack(self):
         self._subcommand = Commands.get_command_by_code(code=bitarray("0001"  + "010110000101", endian='big'),

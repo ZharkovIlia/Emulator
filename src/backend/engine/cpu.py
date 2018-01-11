@@ -53,9 +53,6 @@ class CPU:
                 if op["if"]():
                     self._registers[7].inc(value=op["offset"])
 
-            elif optype is Operation.JUMP:
-                self._registers[7].set(size="word", signed=False, value=op["address"]())
-
             elif optype is Operation.DONE:
                 break
 
