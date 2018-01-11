@@ -43,6 +43,16 @@ class MainWindow(QWidget):
         self.registers.update()
 
 
+from bitarray import bitarray
+
+address = 36
+bitarr = bitarray(endian='big')
+bitarr.frombytes(address.to_bytes(2, byteorder='big', signed=False))
+print(bitarr.to01())
+string = int(bitarr[7:13].to01(), 2)
+print(string)
+exit(0)
+
 app = QApplication(sys.argv)
 window = MainWindow()
 

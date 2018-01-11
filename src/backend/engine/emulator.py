@@ -17,6 +17,8 @@ from src.backend.utils.routines import Routines
 
 
 class Emulator:
+    SIZE_FONT_16_WIDTH = 26
+
     def __init__(self, video_on_show=None):
         self._memory = Memory()
         self._memory.video.set_on_show(video_on_show)
@@ -135,7 +137,7 @@ class Emulator:
         return self._pc.get(size="word", signed=False)
 
     def _fill_ROM(self):
-        self._glyphs = ROMFiller.get_glyphs(size=26)
+        self._glyphs = ROMFiller.get_glyphs(size=self.SIZE_FONT_16_WIDTH)
         self._glyphs_start = MemoryPart.ROM.end - len(self._glyphs["data"])
         for i, v in enumerate(self._glyphs["data"]):
             self._memory.store(address=self._glyphs_start + i, size="byte", value=v)
@@ -149,18 +151,18 @@ class Emulator:
         for i, v in enumerate(init):
             self._memory.store(address=init_start + i*2, size="word", value=v)
 
-        draw_glyph = Routines.draw_glyph_16_mode_0(glyphs_start=self._glyphs_start, glyph_width=self._glyphs["width"],
-                                                   glyph_height=self._glyphs["max_height"],
-                                                   glyph_bitmap_size=self._glyphs["bitmap_size"],
-                                                   monitor_width=self._memory.video.mode.width,
-                                                   video_start=MemoryPart.VRAM.start,
-                                                   monitor_depth=self._memory.video.mode.depth)
+        draw_glyph = Routines.draw_glyph_mode_0(glyphs_start=self._glyphs_start, glyph_width=self._glyphs["width"],
+                                                glyph_height=self._glyphs["max_height"],
+                                                glyph_bitmap_size=self._glyphs["bitmap_size"],
+                                                monitor_width=self._memory.video.mode.width,
+                                                video_start=MemoryPart.VRAM.start,
+                                                monitor_depth=self._memory.video.mode.depth)
         draw_glyph_start = init_end
         draw_glyph_end = draw_glyph_start + len(draw_glyph) * 2
         for i, v in enumerate(draw_glyph):
             self._memory.store(address=draw_glyph_start + i*2, size="word", value=v)
 
-        mainloop = Routines.mainloop_16_mode_0(draw_glyph_start=draw_glyph_start, glyph_width=self._glyphs["width"])
+        mainloop = Routines.mainloop_mode_0(draw_glyph_start=draw_glyph_start, glyph_width=self._glyphs["width"])
         mainloop_start = draw_glyph_end
         mainloop_end = mainloop_start + len(mainloop) * 2
         for i, v in enumerate(mainloop):
