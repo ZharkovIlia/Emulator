@@ -20,7 +20,7 @@ class Operation(enum.Enum):
     INCREMENT_REGISTER      = enum.auto()
     DECREMENT_REGISTER      = enum.auto()
     BRANCH_IF               = enum.auto()
-    JUMP                    = enum.auto()
+    ALU                     = enum.auto()
 
 
 class Operand:
@@ -274,7 +274,7 @@ class AbstractCommand:
                                      "callback": None})
 
     def _add_execute(self, callback):
-        self._operations.append({"operation": Operation.EXECUTE,
+        self._operations.append({"operation": Operation.ALU,
                                  "callback": callback})
 
     def _add_fetch_operands(self, size: str):
@@ -522,48 +522,51 @@ class MARKCommand(JumpCommand):
         self._number = int.from_bytes(tmp.tobytes(), byteorder='big', signed=False)
 
         self._add_decode()
-        self._add_fetch_sp()
-        self._add_increment_sp()
-        self._add_store_sp()
-        self._add_fetch_r5()
-        self._add_jump()
-        self._add_pop_from_stack()
+        self._add_all_operations()
 
-    def _add_fetch_sp(self):
+    def _add_all_operations(self):
         self._tmp_sp = Register()
+        self._tmp_r5 = Register()
+        self._inner_register = Register()
+
         self._operations.append({"operation": Operation.FETCH_REGISTER,
                                  "register": 6,
                                  "size": "word",
                                  "callback": self._tmp_sp.set_word})
 
-    def _add_increment_sp(self):
         self._operations.append({"operation": Operation.EXECUTE,
                                  "callback": lambda: self._tmp_sp.inc(value=self._number * 2)})
 
-    def _add_store_sp(self):
+        self._operations.append({"operation": Operation.FETCH_REGISTER,
+                                 "register": 5,
+                                 "size": "word",
+                                 "callback": self._tmp_r5.set_word})
+
+        self._operations.append({"operation": Operation.FETCH_ADDRESS,
+                                 "address": lambda: self._tmp_sp.get(size="word", signed=False),
+                                 "size": "word",
+                                 "callback": self._inner_register.set_word})
+
+        self._operations.append({"operation": Operation.EXECUTE,
+                                 "callback": lambda: self._tmp_sp.inc(value=2)})
+
         self._operations.append({"operation": Operation.STORE_REGISTER,
                                  "register": 6,
                                  "size": "word",
                                  "value": lambda: self._tmp_sp.word()})
 
-    def _add_fetch_r5(self):
-        self._tmp_r5 = Register()
-        self._operations.append({"operation": Operation.FETCH_REGISTER,
+        self._operations.append({"operation": Operation.STORE_REGISTER,
                                  "register": 5,
                                  "size": "word",
-                                 "callback": self._tmp_r5.set_word})
+                                 "value": lambda: self._inner_register.word()})
+
+        self._add_jump()
 
     def _add_jump(self):
         self._operations.append({"operation": Operation.STORE_REGISTER,
                                  "register": 7,
                                  "size": "word",
                                  "value": lambda: self._tmp_r5.word()})
-
-    def _add_pop_from_stack(self):
-        self._subcommand = Commands.get_command_by_code(code=bitarray("0001"  + "010110000101", endian='big'),
-                                                        program_status=ProgramStatus(), add_decode=False)
-
-        self._operations.extend(self._subcommand._operations)
 
 
 class CLRCommand(SingleOperandCommand):

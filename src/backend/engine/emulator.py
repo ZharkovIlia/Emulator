@@ -33,12 +33,14 @@ class Emulator:
         self._sp.set_lower_bound(256)
 
         self._program_status = ProgramStatus()
-        self._cpu = CPU(memory=self._memory, registers=self._registers, program_status=self._program_status)
 
         self._breakpoints = set()
         self._instructions = {}
+        self._commands = {}
 
         self._fill_ROM()
+        self._cpu = CPU(memory=self._memory, registers=self._registers,
+                        program_status=self._program_status, commands=self._commands)
 
     def step(self):
         self._cpu.execute_next()
@@ -198,6 +200,8 @@ class Emulator:
             try:
                 com = Commands.get_command_by_code(code=self._memory.load(size="word", address=addr),
                                                    program_status=tmp_ps)
+                self._commands[addr] = com
+
             except UnknownCommand:
                 self._instructions[addr].set_state(state=DisasmState.NOT_AN_INSTRUCTION)
                 continue

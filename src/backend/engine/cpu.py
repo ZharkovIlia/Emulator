@@ -9,14 +9,20 @@ class CPU:
     StackPointer = 6
     ProgramCounter = 7
 
-    def __init__(self, memory: Memory, registers: list, program_status: ProgramStatus):
+    def __init__(self, memory: Memory, registers: list, program_status: ProgramStatus, commands: dict = None):
         self._memory = memory
         self._registers = registers
         self._program_status = program_status
+        self._commands: dict = commands
 
     def execute_next(self):
-        instr = self.fetch_next_instruction()
-        command = Commands.get_command_by_code(code=instr, program_status=self._program_status)
+        if self._commands is None:
+            instr = self.fetch_next_instruction()
+            command = Commands.get_command_by_code(code=instr, program_status=self._program_status)
+        else:
+            command = self._commands[self._registers[CPU.ProgramCounter].get(size="word", signed=False)]
+            self.fetch_next_instruction()
+
         for op in command:
             optype = op["operation"]
             if optype is Operation.DECODE:
@@ -33,7 +39,7 @@ class CPU:
             elif optype is Operation.FETCH_ADDRESS:
                 op["callback"](self._memory.load(address=op["address"](), size=op["size"]))
 
-            elif optype is Operation.EXECUTE:
+            elif optype is Operation.EXECUTE or optype is Operation.ALU:
                 op["callback"]()
 
             elif optype is Operation.INCREMENT_REGISTER:
