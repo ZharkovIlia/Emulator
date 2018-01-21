@@ -44,6 +44,7 @@ class Operand:
         return self._reg == 7
 
     def set_next_instruction(self, instr: bitarray):
+        assert instr.length() == 16
         self._next_instruction = int(instr.to01(), 2)
 
     def add_next_instruction_to_inner_register(self):
@@ -109,21 +110,31 @@ class Operand:
 
         if self._mode // 2 == 3:
             operations.append({"operation": Operation.FETCH_NEXT_INSTRUCTION,
+                               "size": "word",
                                "callback": self.set_next_instruction})
+
+        if self._reg == 7 and self._mode // 2 == 1:
+            fetch_size = size if self._mode == 2 else "word"
+            operations.append({"operation": Operation.FETCH_NEXT_INSTRUCTION,
+                               "size": fetch_size,
+                               "callback": self._inner_register.set_byte
+                               if fetch_size == "byte" else self._inner_register.set_word})
 
         if self._mode == 0 and self.do_not_fetch_operand:
             return
-        fetch_size = size if self._mode == 0 else "word"
-        operations.append({"operation": Operation.FETCH_REGISTER,
-                           "register": self._reg,
-                           "size": fetch_size,
-                           "callback": self._inner_register.set_byte
-                           if fetch_size == "byte" else self._inner_register.set_word})
+
+        if not (self._reg == 7 and self._mode // 2 == 1):
+            fetch_size = size if self._mode == 0 else "word"
+            operations.append({"operation": Operation.FETCH_REGISTER,
+                               "register": self._reg,
+                               "size": fetch_size,
+                               "callback": self._inner_register.set_byte
+                               if fetch_size == "byte" else self._inner_register.set_word})
 
         if self._mode == 0:
             return
 
-        if self._mode // 2 == 1:
+        if self._mode // 2 == 1 and not self._reg == 7:
             value = 1 if self._mode == 2 and size == "byte" and self._reg not in (6, 7) else 2
             operations.append({"operation": Operation.INCREMENT_REGISTER,
                                "register": self._reg,
@@ -134,19 +145,21 @@ class Operand:
                                "callback": self.add_next_instruction_to_inner_register,
                                "cycles": 1})
 
-        if self._mode in (1, 2, 4, 6):
+        if self._mode in (1, 2, 4, 6) and not (self._reg == 7 and self._mode // 2 == 1):
             operations.append({"operation": Operation.EXECUTE,
                                "callback": self.copy_inner_register_to_inner_address,
                                "cycles": 0})
 
         if self._mode in (1, 2, 4, 6) and self.do_not_fetch_operand:
             return
-        fetch_size = size if self._mode in (1, 2, 4, 6) else "word"
-        operations.append({"operation": Operation.FETCH_ADDRESS,
-                           "address": lambda: self._inner_register.get(size="word", signed=False),
-                           "size": fetch_size,
-                           "callback": self._inner_register.set_byte
-                           if fetch_size == "byte" else self._inner_register.set_word})
+
+        if not (self._reg == 7 and self._mode // 2 == 1):
+            fetch_size = size if self._mode in (1, 2, 4, 6) else "word"
+            operations.append({"operation": Operation.FETCH_ADDRESS,
+                               "address": lambda: self._inner_register.get(size="word", signed=False),
+                               "size": fetch_size,
+                               "callback": self._inner_register.set_byte
+                               if fetch_size == "byte" else self._inner_register.set_word})
 
         if self._mode in (1, 2, 4, 6):
             return
@@ -174,6 +187,7 @@ class Operand:
                                "value": value})
 
         else:
+            assert not (self._reg == 7 and self._mode == 2)
             operations.append({"operation": Operation.STORE_ADDRESS,
                                "address": lambda: self._inner_address.get(size="word", signed=False),
                                "size": size,
@@ -1164,7 +1178,7 @@ class InstanceCommand(enum.Enum):
     JSR  = (               r'0000100'    + _REG_PATTERN + _DEST_PATTERN, JSRCommand,  "JSR",  False, 0)
     RTS  = (               r'0000000010000' + _REG_PATTERN,              RTSCommand,  "RTS",  False, 0)
     MARK = (               r'0000110100' + _NUMBER_PATTERN,              MARKCommand, "MARK", False, 0)
-    SOB  = (               r'0111111' + _REG_PATTERN + _SOB_OFFSET_PTRN, SOBCommand,  "SOB",  False, 0)
+    SOB  = (               r'0111111' + _REG_PATTERN + _SOB_OFFSET_PTRN, SOBCommand,  "SOB",  False, 7)
 
     #BHIS = (               r'10000110'   + _OFFSET_PATTERN,              BHISCommand, "BHIS", False)
     #BLO  = (               r'10000111'   + _OFFSET_PATTERN,              BLOCommand,  "BLO",  False)

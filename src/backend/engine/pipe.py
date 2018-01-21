@@ -82,6 +82,7 @@ class PipeComponent:
             self._commandsQueue.popleft()
             if len(self._commandsQueue) == 0:
                 self._state = PipeComponentState.WAIT_NEXT_COMMAND
+                self._opnum = 0
             else:
                 self._state = PipeComponentState.WAIT_PREV_COMPONENT
                 self._opnum = 0
@@ -96,9 +97,9 @@ class InstructionFetcher(PipeComponent):
         self._registers = registers
         self._decoded = False
         self._next_instruction: bitarray = None
-        self._decoder: Decoder = None
+        self._decoder = None
 
-    def set_decoder(self, decoder: Decoder):
+    def set_decoder(self, decoder):
         self._decoder = decoder
 
     def command_decoded(self):
@@ -108,6 +109,7 @@ class InstructionFetcher(PipeComponent):
 
     def add_command(self, command: AbstractCommand):
         com = [{"operation": Operation.FETCH_NEXT_INSTRUCTION,
+                "size": "word",
                 "callback": lambda instr: None}]
 
         for op in command:
@@ -139,7 +141,8 @@ class InstructionFetcher(PipeComponent):
                 success, self._address = self._registers.get(regnum=self.PC, size="word", signed=False)
                 assert success
 
-                success, instr = self._imem.load(address=self._address, size="word")
+                success, instr = self._imem.load(address=self._address,
+                                                 size=self._commandsQueue[0][self._opnum]["size"])
 
                 if success and self._opnum != 0:
                     self._next_instruction = instr
@@ -155,7 +158,8 @@ class InstructionFetcher(PipeComponent):
                     self._rwb = 'r'
 
         elif self._state == PipeComponentState.WAIT_INSTRUCTION:
-            success, instr = self._imem.load(address=self._address, size="word")
+            success, instr = self._imem.load(address=self._address,
+                                             size=self._commandsQueue[0][self._opnum]["size"])
 
             if success and self._opnum != 0:
                 self._next_instruction = instr
@@ -275,7 +279,7 @@ class OperandsFetcher(PipeComponent):
                                            PipeComponentState.WAIT_NEXT_COMMAND):
             return False
 
-        if len(self._commandsQueue[0]) == 0:
+        if len(self._commandsQueue[0]["ops"]) == 0:
             self._num_block = 0
             self._block_reg()
             assert self._state == PipeComponentState.FINISHED
@@ -324,12 +328,14 @@ class OperandsFetcher(PipeComponent):
 
             elif optype == Operation.INCREMENT_REGISTER:
                 reg = op["register"]
+                assert reg != 7
                 success = self._registers.inc(regnum=reg, value=op["value"])
                 if success:
                     self._opnum += 1
 
             elif optype == Operation.DECREMENT_REGISTER:
                 reg = op["register"]
+                assert reg != 7
                 success = self._registers.dec(regnum=reg, value=op["value"])
                 if success:
                     self._opnum += 1
@@ -360,14 +366,14 @@ class OperandsFetcher(PipeComponent):
                     self._opnum += 1
 
         self._execute_null_cycle_operations()
-        if self._opnum == len(self._commandsQueue[0]):
+        if self._opnum == len(self._commandsQueue[0]["ops"]):
             self._num_block = 0
             self._block_reg()
 
         return True
 
     def _execute_null_cycle_operations(self):
-        while self._opnum < len(self._commandsQueue[0]):
+        while self._opnum < len(self._commandsQueue[0]["ops"]):
             op = self._commandsQueue[0]["ops"][self._opnum]
             if op["operation"] == Operation.EXECUTE and op["cycles"] == 0:
                 op["callback"]()
@@ -613,6 +619,8 @@ class Pipe:
 
         self._enabled = enabled
         self.clear_statistics()
+        self._add_command()
+        self._instructions += 1
 
     @property
     def enabled(self):
@@ -635,9 +643,7 @@ class Pipe:
         new_command = False
         if self.empty() or self._enabled and self._components[0].state == PipeComponentState.WAIT_NEXT_COMMAND:
             new_command = True
-            command = self._commands[self._pc.get(size="word", signed=False)]
-            for component in self._components:
-                component.add_command(command)
+            self._add_command()
 
         new_command = new_command or self._progress(fetch_new_instruction=True)
         if new_command:
@@ -673,21 +679,19 @@ class Pipe:
         for component in self._components:
             if component.state == PipeComponentState.WAIT_DATA and dmem_ready \
                     and component.address == self._dmem.address and component.rwb == self._dmem.rwb:
-                worked = worked or component.cycle()
+                worked = component.cycle() or worked
 
             if component.state == PipeComponentState.WAIT_INSTRUCTION and imem_ready \
                     and component.address == self._imem.address and component.rwb == self._imem.rwb:
-                worked = worked or component.cycle()
+                worked = component.cycle() or worked
 
         for pos in range(len(self._components) - 1, -1, -1):
-            worked = worked or self._advance(dmem_ready, imem_ready, pos)
+            worked = self._advance(dmem_ready, imem_ready, pos) or worked
 
         if fetch_new_instruction and (self.empty() or self._enabled and
                                       self._components[0].state == PipeComponentState.WAIT_NEXT_COMMAND):
             new_command = True
-            command = self._commands[self._pc.get(size="word", signed=False)]
-            for component in self._components:
-                component.add_command(command)
+            self._add_command()
 
         if self._enabled or not worked:
             self._advance(dmem_ready, imem_ready, 0)
@@ -704,7 +708,7 @@ class Pipe:
                 try_cycle = try_cycle and not self._components[i - 1].worked
 
             if try_cycle:
-                worked = worked or component.cycle()
+                worked = component.cycle() or worked
 
             if i == len(self._components) - 1 and self._components[i].state == PipeComponentState.FINISHED:
                 self._components[i].continue_()
@@ -715,3 +719,8 @@ class Pipe:
                 self._components[i + 1].continue_()
 
         return worked
+
+    def _add_command(self):
+        command = self._commands[self._pc.get(size="word", signed=False)]
+        for component in self._components:
+            component.add_command(command)

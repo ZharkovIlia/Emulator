@@ -1,3 +1,6 @@
+from src.backend.engine.cash import CashMemory
+from src.backend.engine.pipe import Pipe
+from src.backend.engine.pool_registers import PoolRegisters
 from src.backend.model.commands import Commands
 from src.backend.model.video import VideoMode
 from src.backend.utils.assembler import Assembler
@@ -39,19 +42,29 @@ class Emulator:
         self._commands = {}
 
         self._fill_ROM()
-        self._cpu = CPU(memory=self._memory, registers=self._registers,
-                        program_status=self._program_status, commands=self._commands)
+        self._icash = CashMemory(self._memory, False)
+        self._dcash = CashMemory(self._memory, False)
+        self._pool_registers = PoolRegisters(self._registers, False)
+        self._pipe = Pipe(dmem=self._dcash, imem=self._icash, pool_registers=self._pool_registers,
+                          ps=self._program_status, commands=self._commands, enabled=False)
+        #self._cpu = CPU(memory=self._memory, registers=self._registers,
+        #                program_status=self._program_status, commands=self._commands)
 
     def step(self):
-        self._cpu.execute_next()
+        while not self._pipe.cycle():
+            pass
+        print(self._pipe.cycles)
+        print(self._pipe.instructions)
         self._memory.video.show()
 
     def run(self):
         while True:
-            self._cpu.execute_next()
+            self.step()
             if self.current_pc in self._breakpoints:
                 break
 
+        print(self._pipe.cycles)
+        print(self._pipe.instructions)
         self._memory.video.show()
 
     def toggle_breakpoint(self, address: int):

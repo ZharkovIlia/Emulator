@@ -17,7 +17,7 @@ class CPU:
 
     def execute_next(self):
         if self._commands is None:
-            instr = self.fetch_next_instruction()
+            instr = self.fetch_next_instruction(size="word")
             command = Commands.get_command_by_code(code=instr, program_status=self._program_status)
         else:
             command = self._commands[self._registers[CPU.ProgramCounter].get(size="word", signed=False)]
@@ -29,7 +29,7 @@ class CPU:
                 continue
 
             elif optype is Operation.FETCH_NEXT_INSTRUCTION:
-                next_instr = self.fetch_next_instruction()
+                next_instr = self.fetch_next_instruction(size=op["size"])
                 op["callback"](next_instr)
 
             elif optype is Operation.FETCH_REGISTER:
@@ -62,8 +62,8 @@ class CPU:
             elif optype is Operation.DONE:
                 break
 
-    def fetch_next_instruction(self) -> bitarray:
+    def fetch_next_instruction(self, size: str) -> bitarray:
         instr = self._memory.load(address=self._registers[CPU.ProgramCounter].get(size="word", signed=False),
-                                  size="word")
+                                  size=size)
         self._registers[CPU.ProgramCounter].inc(value=2)
         return instr

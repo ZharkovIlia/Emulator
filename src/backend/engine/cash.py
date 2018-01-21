@@ -206,11 +206,11 @@ class CashMemory:
         return False
 
     def _load_if_disabled(self, address: int, size: str) -> (bool, bitarray):
-        if self._rw == 'w':
+        if self._rwb == 'w':
             return False, None
 
         if self._address == address and not self._busy:
-            self._rw = None
+            self._rwb = None
             self._address = -1
             return True, self._memory.load(address, size)
 
@@ -218,7 +218,7 @@ class CashMemory:
             return False, None
 
         if not self._busy:
-            self._rw = 'r'
+            self._rwb = 'r'
             self._address = address
             self._bus_request = BusRequest(2)
             self._busy = True
@@ -226,11 +226,11 @@ class CashMemory:
         return False, None
 
     def _store_if_disabled(self, address: int, size: str, value: bitarray) -> bool:
-        if self._rw == 'r':
+        if self._rwb == 'r':
             return False
 
         if self._address == address and not self._busy:
-            self._rw = None
+            self._rwb = None
             self._address = -1
             self._memory.store(address, size, value)
             return True
@@ -239,7 +239,7 @@ class CashMemory:
             return False
 
         if not self._busy:
-            self._rw = 'w'
+            self._rwb = 'w'
             self._address = address
             self._bus_request = BusRequest(2)
             self._busy = True
