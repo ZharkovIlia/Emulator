@@ -38,6 +38,8 @@ class Emulator:
 
         self._fill_ROM()
 
+        self.stopped = False
+
     def step(self):
         self._cpu.execute_next()
         self._memory.video.show()
@@ -45,7 +47,7 @@ class Emulator:
     def run(self):
         while True:
             self._cpu.execute_next()
-            if self.current_pc in self._breakpoints:
+            if self.current_pc in self._breakpoints or self.stopped:
                 break
 
         self._memory.video.show()

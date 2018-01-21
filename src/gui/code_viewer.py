@@ -1,3 +1,4 @@
+from src.backend.engine.emulator import Emulator
 from src.backend.model.memory import Memory
 from src.backend.utils.exceptions import *
 from src.gui.breakpoints_view import BreakpointsView
@@ -7,7 +8,7 @@ from PyQt5.QtCore import Qt
 
 
 class CodeViewer(QWidget):
-    def __init__(self, emulator):
+    def __init__(self, emulator: Emulator):
         super().__init__()
         self.emulator = emulator
         self.setWindowTitle("Emulator")
@@ -75,3 +76,10 @@ class CodeViewer(QWidget):
 
     def get_current(self):
         self.get_address(self.emulator.current_pc)
+
+    def reset(self, emu: Emulator):
+        self.emulator = emu
+        self.address_editor = QLineEdit(format(self.emulator.current_pc, 'o'))
+        self.breakpoint_table.deleteLater()
+        self.breakpoint_table = BreakpointsView(self.emulator, 10, self.format_box.currentText())
+        self.editor_layout.addWidget(self.breakpoint_table)

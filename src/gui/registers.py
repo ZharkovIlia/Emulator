@@ -1,6 +1,8 @@
 from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QLineEdit
 from PyQt5.QtCore import Qt
 
+from src.backend.engine.emulator import Emulator
+
 
 class RegisterWindow(QWidget):
     class RegisterLine(QLabel):
@@ -33,7 +35,7 @@ class RegisterWindow(QWidget):
         def set_value(self, value: bool):
             self.value.setText(str(value))
 
-    def __init__(self, emulator):
+    def __init__(self, emulator: Emulator):
         super().__init__()
         self.emulator = emulator
         self.initUI()
@@ -54,7 +56,6 @@ class RegisterWindow(QWidget):
         program_st_box.setSpacing(0)
         program_st_box.setAlignment(Qt.AlignTop)
         bits = self.emulator.program_status.bits
-        print(bits)
         self.status_lines = list()
         for i in bits.keys():
             self.status_lines.append(self.StatusLine(i, bits[i]))
@@ -73,3 +74,8 @@ class RegisterWindow(QWidget):
 
         for line in self.status_lines:
             line.set_value(self.emulator.program_status.get(line.name.text()))
+
+    def reset(self, emu: Emulator):
+        self.emulator = emu
+        self.num_of_registers = len(self.emulator.registers)
+        self.update()
