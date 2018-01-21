@@ -2,7 +2,7 @@ import unittest
 
 from bitarray import bitarray
 
-from src.backend.model.cash import CashMemory
+from src.backend.engine.cash import CashMemory
 from src.backend.model.memory import Memory
 
 

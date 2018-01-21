@@ -131,11 +131,13 @@ class Operand:
 
         if self._mode // 2 == 3:
             operations.append({"operation": Operation.EXECUTE,
-                               "callback": self.add_next_instruction_to_inner_register})
+                               "callback": self.add_next_instruction_to_inner_register,
+                               "cycles": 1})
 
         if self._mode in (1, 2, 4, 6):
             operations.append({"operation": Operation.EXECUTE,
-                               "callback": self.copy_inner_register_to_inner_address})
+                               "callback": self.copy_inner_register_to_inner_address,
+                               "cycles": 0})
 
         if self._mode in (1, 2, 4, 6) and self.do_not_fetch_operand:
             return
@@ -150,7 +152,8 @@ class Operand:
             return
 
         operations.append({"operation": Operation.EXECUTE,
-                           "callback": self.copy_inner_register_to_inner_address})
+                           "callback": self.copy_inner_register_to_inner_address,
+                           "cycles": 0})
 
         if self.do_not_fetch_operand:
             return
@@ -178,7 +181,7 @@ class Operand:
 
 
 class AbstractCommand:
-    def __init__(self, program_status: ProgramStatus, type_, on_byte: bool, add_decode=True):
+    def __init__(self, program_status: ProgramStatus, type_, on_byte: bool, alu_cycles: int, add_decode=True):
         self._program_status = program_status
         self._cur_operation = 0
         self._operations = []
@@ -192,6 +195,7 @@ class AbstractCommand:
         self._offset = None
         self._number = None
         self._type = type_
+        self._alu_cycles = alu_cycles
 
     @property
     def size(self):
@@ -274,8 +278,10 @@ class AbstractCommand:
                                      "callback": None})
 
     def _add_execute(self, callback):
+        assert self._alu_cycles != 0
         self._operations.append({"operation": Operation.ALU,
-                                 "callback": callback})
+                                 "callback": callback,
+                                 "cycles": self._alu_cycles})
 
     def _add_fetch_operands(self, size: str):
         if self._src_operand is not None:
@@ -658,8 +664,10 @@ class TSTCommand(SingleOperandCommand):
 
 
 class ASRCommand(SingleOperandCommand):
-    def __init__(self, **kwargs):
-        super(ASRCommand, self).__init__(**kwargs)
+    def __init__(self, alu_cycles, on_byte, **kwargs):
+        if on_byte:
+            alu_cycles += 1
+        super(ASRCommand, self).__init__(alu_cycles=alu_cycles, on_byte=on_byte, **kwargs)
 
     def execute(self):
         value = self.dest_operand.inner_register.get(size=self.size, signed=True)
@@ -693,8 +701,10 @@ class ASLCommand(SingleOperandCommand):
 
 
 class RORCommand(SingleOperandCommand):
-    def __init__(self, **kwargs):
-        super(RORCommand, self).__init__(**kwargs)
+    def __init__(self, alu_cycles, on_byte, **kwargs):
+        if on_byte:
+            alu_cycles += 1
+        super(RORCommand, self).__init__(alu_cycles=alu_cycles, on_byte=on_byte, **kwargs)
 
     def execute(self):
         value = self.dest_operand.inner_register.get(size=self.size, signed=False)
@@ -797,8 +807,10 @@ class SXTCommand(SingleOperandCommand):
 
 
 class MOVCommand(DoubleOperandCommand):
-    def __init__(self, **kwargs):
-        super(MOVCommand, self).__init__(**kwargs)
+    def __init__(self, alu_cycles, on_byte, **kwargs):
+        if on_byte:
+            alu_cycles += 3
+        super(MOVCommand, self).__init__(alu_cycles=alu_cycles, on_byte=on_byte, **kwargs)
 
     def execute(self):
         size_exec = self.size
@@ -1110,49 +1122,49 @@ _SOB_OFFSET_PTRN = _COMM_PATTERN.format("offset", "{6}")
 
 
 class InstanceCommand(enum.Enum):
-    CLR  = (_MSB_PATTERN + r'000101000'  + _DEST_PATTERN,                CLRCommand,  "CLR",  True)
-    COM  = (_MSB_PATTERN + r'000101001'  + _DEST_PATTERN,                COMCommand,  "COM",  True)
-    INC  = (_MSB_PATTERN + r'000101010'  + _DEST_PATTERN,                INCCommand,  "INC",  True)
-    DEC  = (_MSB_PATTERN + r'000101011'  + _DEST_PATTERN,                DECCommand,  "DEC",  True)
-    NEG  = (_MSB_PATTERN + r'000101100'  + _DEST_PATTERN,                NEGCommand,  "NEG",  True)
-    TST  = (_MSB_PATTERN + r'000101111'  + _DEST_PATTERN,                TSTCommand,  "TST",  False)
-    ASR  = (_MSB_PATTERN + r'000110010'  + _DEST_PATTERN,                ASRCommand,  "ASR",  True)
-    ASL  = (_MSB_PATTERN + r'000110011'  + _DEST_PATTERN,                ASLCommand,  "ASL",  True)
-    ROR  = (_MSB_PATTERN + r'000110000'  + _DEST_PATTERN,                RORCommand,  "ROR",  True)
-    ROL  = (_MSB_PATTERN + r'000110001'  + _DEST_PATTERN,                ROLCommand,  "ROL",  True)
-    SWAB = (               r'0000000011' + _DEST_PATTERN,                SWABCommand, "SWAB", True)
-    ADC  = (_MSB_PATTERN + r'000101101'  + _DEST_PATTERN,                ADCCommand,  "ADC",  True)
-    SBC  = (_MSB_PATTERN + r'000101110'  + _DEST_PATTERN,                SBCCommand,  "SBC",  True)
-    SXT  = (               r'0000110111' + _DEST_PATTERN,                SXTCommand,  "SXT",  True)
-    MOV  = (_MSB_PATTERN + r'001'        + _SRC_PATTERN + _DEST_PATTERN, MOVCommand,  "MOV",  True)
-    CMP  = (_MSB_PATTERN + r'010'        + _SRC_PATTERN + _DEST_PATTERN, CMPCommand,  "CMP",  False)
-    ADD  = (               r'0110'       + _SRC_PATTERN + _DEST_PATTERN, ADDCommand,  "ADD",  True)
-    SUB  = (               r'1110'       + _SRC_PATTERN + _DEST_PATTERN, SUBCommand,  "SUB",  True)
-    BIT  = (_MSB_PATTERN + r'011'        + _SRC_PATTERN + _DEST_PATTERN, BITCommand,  "BIT",  False)
-    BIC  = (_MSB_PATTERN + r'100'        + _SRC_PATTERN + _DEST_PATTERN, BICCommand,  "BIC",  True)
-    BIS  = (_MSB_PATTERN + r'101'        + _SRC_PATTERN + _DEST_PATTERN, BISCommand,  "BIS",  True)
-    MUL  = (               r'0111000'    + _SRC_PATTERN + _REG_PATTERN,  MULCommand,  "MUL",  True)
-    XOR  = (               r'0111100'    + _REG_PATTERN + _DEST_PATTERN, XORCommand,  "XOR",  True)
-    BR   = (               r'00000001'   + _OFFSET_PATTERN,              BRCommand,   "BR",   False)
-    BNE  = (               r'00000010'   + _OFFSET_PATTERN,              BNECommand,  "BNE",  False)
-    BEQ  = (               r'00000011'   + _OFFSET_PATTERN,              BEQCommand,  "BEQ",  False)
-    BPL  = (               r'10000000'   + _OFFSET_PATTERN,              BPLCommand,  "BPL",  False)
-    BMI  = (               r'10000001'   + _OFFSET_PATTERN,              BMICommand,  "BMI",  False)
-    BVC  = (               r'10000100'   + _OFFSET_PATTERN,              BVCCommand,  "BVC",  False)
-    BVS  = (               r'10000101'   + _OFFSET_PATTERN,              BVSCommand,  "BVS",  False)
-    BCC  = (               r'10000110'   + _OFFSET_PATTERN,              BCCCommand,  "BCC",  False)
-    BCS  = (               r'10000111'   + _OFFSET_PATTERN,              BCSCommand,  "BCS",  False)
-    BGE  = (               r'00000100'   + _OFFSET_PATTERN,              BGECommand,  "BGE",  False)
-    BLT  = (               r'00000101'   + _OFFSET_PATTERN,              BLTCommand,  "BLT",  False)
-    BGT  = (               r'00000110'   + _OFFSET_PATTERN,              BGTCommand,  "BGT",  False)
-    BLE  = (               r'00000111'   + _OFFSET_PATTERN,              BLECommand,  "BLE",  False)
-    BHI  = (               r'10000010'   + _OFFSET_PATTERN,              BHICommand,  "BHI",  False)
-    BLOS = (               r'10000011'   + _OFFSET_PATTERN,              BLOSCommand, "BLOS", False)
-    JMP  = (               r'0000000001' + _DEST_PATTERN,                JMPCommand,  "JMP",  False)
-    JSR  = (               r'0000100'    + _REG_PATTERN + _DEST_PATTERN, JSRCommand,  "JSR",  False)
-    RTS  = (               r'0000000010000' + _REG_PATTERN,              RTSCommand,  "RTS",  False)
-    MARK = (               r'0000110100' + _NUMBER_PATTERN,              MARKCommand, "MARK", False)
-    SOB  = (               r'0111111' + _REG_PATTERN + _SOB_OFFSET_PTRN, SOBCommand,  "SOB",  False)
+    CLR  = (_MSB_PATTERN + r'000101000'  + _DEST_PATTERN,                CLRCommand,  "CLR",  True,  4)
+    COM  = (_MSB_PATTERN + r'000101001'  + _DEST_PATTERN,                COMCommand,  "COM",  True,  4)
+    INC  = (_MSB_PATTERN + r'000101010'  + _DEST_PATTERN,                INCCommand,  "INC",  True,  4)
+    DEC  = (_MSB_PATTERN + r'000101011'  + _DEST_PATTERN,                DECCommand,  "DEC",  True,  4)
+    NEG  = (_MSB_PATTERN + r'000101100'  + _DEST_PATTERN,                NEGCommand,  "NEG",  True,  4)
+    TST  = (_MSB_PATTERN + r'000101111'  + _DEST_PATTERN,                TSTCommand,  "TST",  False, 4)
+    ASR  = (_MSB_PATTERN + r'000110010'  + _DEST_PATTERN,                ASRCommand,  "ASR",  True,  5)
+    ASL  = (_MSB_PATTERN + r'000110011'  + _DEST_PATTERN,                ASLCommand,  "ASL",  True,  4)
+    ROR  = (_MSB_PATTERN + r'000110000'  + _DEST_PATTERN,                RORCommand,  "ROR",  True,  5)
+    ROL  = (_MSB_PATTERN + r'000110001'  + _DEST_PATTERN,                ROLCommand,  "ROL",  True,  4)
+    SWAB = (               r'0000000011' + _DEST_PATTERN,                SWABCommand, "SWAB", True,  4)
+    ADC  = (_MSB_PATTERN + r'000101101'  + _DEST_PATTERN,                ADCCommand,  "ADC",  True,  4)
+    SBC  = (_MSB_PATTERN + r'000101110'  + _DEST_PATTERN,                SBCCommand,  "SBC",  True,  4)
+    SXT  = (               r'0000110111' + _DEST_PATTERN,                SXTCommand,  "SXT",  True,  4)
+    MOV  = (_MSB_PATTERN + r'001'        + _SRC_PATTERN + _DEST_PATTERN, MOVCommand,  "MOV",  True,  3)
+    CMP  = (_MSB_PATTERN + r'010'        + _SRC_PATTERN + _DEST_PATTERN, CMPCommand,  "CMP",  False, 3)
+    ADD  = (               r'0110'       + _SRC_PATTERN + _DEST_PATTERN, ADDCommand,  "ADD",  True,  3)
+    SUB  = (               r'1110'       + _SRC_PATTERN + _DEST_PATTERN, SUBCommand,  "SUB",  True,  3)
+    BIT  = (_MSB_PATTERN + r'011'        + _SRC_PATTERN + _DEST_PATTERN, BITCommand,  "BIT",  False, 3)
+    BIC  = (_MSB_PATTERN + r'100'        + _SRC_PATTERN + _DEST_PATTERN, BICCommand,  "BIC",  True,  3)
+    BIS  = (_MSB_PATTERN + r'101'        + _SRC_PATTERN + _DEST_PATTERN, BISCommand,  "BIS",  True,  3)
+    MUL  = (               r'0111000'    + _SRC_PATTERN + _REG_PATTERN,  MULCommand,  "MUL",  True,  40)
+    XOR  = (               r'0111100'    + _REG_PATTERN + _DEST_PATTERN, XORCommand,  "XOR",  True,  3)
+    BR   = (               r'00000001'   + _OFFSET_PATTERN,              BRCommand,   "BR",   False, 7)
+    BNE  = (               r'00000010'   + _OFFSET_PATTERN,              BNECommand,  "BNE",  False, 7)
+    BEQ  = (               r'00000011'   + _OFFSET_PATTERN,              BEQCommand,  "BEQ",  False, 7)
+    BPL  = (               r'10000000'   + _OFFSET_PATTERN,              BPLCommand,  "BPL",  False, 7)
+    BMI  = (               r'10000001'   + _OFFSET_PATTERN,              BMICommand,  "BMI",  False, 7)
+    BVC  = (               r'10000100'   + _OFFSET_PATTERN,              BVCCommand,  "BVC",  False, 7)
+    BVS  = (               r'10000101'   + _OFFSET_PATTERN,              BVSCommand,  "BVS",  False, 7)
+    BCC  = (               r'10000110'   + _OFFSET_PATTERN,              BCCCommand,  "BCC",  False, 7)
+    BCS  = (               r'10000111'   + _OFFSET_PATTERN,              BCSCommand,  "BCS",  False, 7)
+    BGE  = (               r'00000100'   + _OFFSET_PATTERN,              BGECommand,  "BGE",  False, 7)
+    BLT  = (               r'00000101'   + _OFFSET_PATTERN,              BLTCommand,  "BLT",  False, 7)
+    BGT  = (               r'00000110'   + _OFFSET_PATTERN,              BGTCommand,  "BGT",  False, 7)
+    BLE  = (               r'00000111'   + _OFFSET_PATTERN,              BLECommand,  "BLE",  False, 7)
+    BHI  = (               r'10000010'   + _OFFSET_PATTERN,              BHICommand,  "BHI",  False, 7)
+    BLOS = (               r'10000011'   + _OFFSET_PATTERN,              BLOSCommand, "BLOS", False, 7)
+    JMP  = (               r'0000000001' + _DEST_PATTERN,                JMPCommand,  "JMP",  False, 0)
+    JSR  = (               r'0000100'    + _REG_PATTERN + _DEST_PATTERN, JSRCommand,  "JSR",  False, 0)
+    RTS  = (               r'0000000010000' + _REG_PATTERN,              RTSCommand,  "RTS",  False, 0)
+    MARK = (               r'0000110100' + _NUMBER_PATTERN,              MARKCommand, "MARK", False, 0)
+    SOB  = (               r'0111111' + _REG_PATTERN + _SOB_OFFSET_PTRN, SOBCommand,  "SOB",  False, 0)
 
     #BHIS = (               r'10000110'   + _OFFSET_PATTERN,              BHISCommand, "BHIS", False)
     #BLO  = (               r'10000111'   + _OFFSET_PATTERN,              BLOCommand,  "BLO",  False)
@@ -1160,11 +1172,12 @@ class InstanceCommand(enum.Enum):
     #ASH  = (               r'0111010'    + _REG_PATTERN + _SRC_PATTERN,  ASHCommand,  "ASH",  True)
     #ASHC = (               r'0111011'    + _REG_PATTERN + _SRC_PATTERN,  ASHCCommand, "ASHC", True)
 
-    def __init__(self, pattern, klass, representation: str, dest_stored: bool):
+    def __init__(self, pattern, klass, representation: str, dest_stored: bool, alu_cycles):
         self._pattern = re.compile(pattern=pattern)
         self._klass = klass
         self._string_representation = representation
         self._dest_stored = dest_stored
+        self._alu_cycles = alu_cycles
 
     @property
     def pattern(self):
@@ -1182,6 +1195,10 @@ class InstanceCommand(enum.Enum):
     def dest_stored(self):
         return self._dest_stored
 
+    @property
+    def alu_cycles(self):
+        return self._alu_cycles
+
 
 class Commands:
     @staticmethod
@@ -1195,7 +1212,8 @@ class Commands:
                 on_byte = False
                 if "msb" in matcher.groupdict():
                     on_byte = (matcher.group("msb") == "1")
-                return command_instance.klass(matcher=matcher, program_status=program_status,
-                                              type_=command_instance, on_byte=on_byte, add_decode=add_decode)
+                return command_instance.klass(matcher=matcher, program_status=program_status, type_=command_instance,
+                                              on_byte=on_byte, add_decode=add_decode,
+                                              alu_cycles=command_instance.alu_cycles)
 
         raise UnknownCommand(code=code)
