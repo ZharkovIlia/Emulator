@@ -76,6 +76,12 @@ class StackOverflow(RegisterException):
         self.sp = sp
 
 
+class PoolRegistersUnblockException(RegisterException):
+    def __init__(self):
+        super(PoolRegisterUnblockException, self).__init__(what="Tried to unblock unblocked register")
+
+
+
 class ProgramStatusException(EmulatorException):
     def __init__(self, what: str):
         super(ProgramStatusException, self).__init__(what)

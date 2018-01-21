@@ -303,7 +303,8 @@ class OperandsFetcher(PipeComponent):
 
             elif optype == Operation.FETCH_REGISTER:
                 reg = op["register"]
-                success, bitarr = self._registers.byte(reg) if op["size"] == "byte" else self._registers.word(reg)
+                success, bitarr = self._registers.byte(regnum=reg) if op["size"] == "byte" \
+                    else self._registers.word(regnum=reg)
                 if success:
                     op["callback"](bitarr)
                     self._opnum += 1
@@ -323,13 +324,13 @@ class OperandsFetcher(PipeComponent):
 
             elif optype == Operation.INCREMENT_REGISTER:
                 reg = op["register"]
-                success = self._registers.inc(reg, op["value"])
+                success = self._registers.inc(regnum=reg, value=op["value"])
                 if success:
                     self._opnum += 1
 
             elif optype == Operation.DECREMENT_REGISTER:
                 reg = op["register"]
-                success = self._registers.dec(reg, op["value"])
+                success = self._registers.dec(regnum=reg, value=op["value"])
                 if success:
                     self._opnum += 1
 
@@ -394,7 +395,7 @@ class OperandsFetcher(PipeComponent):
             self._block_mem()
 
     def _block_mem(self):
-        if not self._dmem._enabled:
+        if not self._dmem.enabled:
             self._state = PipeComponentState.FINISHED
             return
 
@@ -422,6 +423,7 @@ class OperandsFetcher(PipeComponent):
         else:
             self._blocking_mem = False
             self._state = PipeComponentState.FINISHED
+
 
 class ALU(PipeComponent):
     def __init__(self):
@@ -523,8 +525,8 @@ class DataWriter(PipeComponent):
             elif optype == Operation.STORE_REGISTER:
                 reg = op["register"]
                 value = op["value"]()
-                success = self._registers.set_byte(reg, value) if op["size"] == "byte" \
-                    else self._registers.set_word(reg, value)
+                success = self._registers.set_byte(regnum=reg, value=value) if op["size"] == "byte" \
+                    else self._registers.set_word(regnum=reg, value=value)
                 assert success
                 self._opnum += 1
                 self._unblock_reg_if_stored(reg)
@@ -574,7 +576,7 @@ class DataWriter(PipeComponent):
             assert success
 
     def _unblock_mem(self):
-        if not self._dmem._enabled:
+        if not self._dmem.enabled:
             self._state = PipeComponentState.FINISHED
             return
 
@@ -681,7 +683,7 @@ class Pipe:
             worked = worked or self._advance(dmem_ready, imem_ready, pos)
 
         if fetch_new_instruction and (self.empty() or self._enabled and
-                self._components[0].state == PipeComponentState.WAIT_NEXT_COMMAND):
+                                      self._components[0].state == PipeComponentState.WAIT_NEXT_COMMAND):
             new_command = True
             command = self._commands[self._pc.get(size="word", signed=False)]
             for component in self._components:
@@ -697,9 +699,9 @@ class Pipe:
         for i in range(pos, len(self._components)):
             component = self._components[i]
             try_cycle = not (component.state == PipeComponentState.WAIT_DATA and not dmem_ready) and \
-                    not (component.state == PipeComponentState.WAIT_INSTRUCTION and not imem_ready)
+                not (component.state == PipeComponentState.WAIT_INSTRUCTION and not imem_ready)
             if i != pos:
-                try_cycle = try_cycle and not self._components[i-1].worked
+                try_cycle = try_cycle and not self._components[i - 1].worked
 
             if try_cycle:
                 worked = worked or component.cycle()
@@ -708,7 +710,8 @@ class Pipe:
                 self._components[i].continue_()
 
             elif self._components[i].state == PipeComponentState.FINISHED and \
-                    self._components[i+1].state == PipeComponentState.WAIT_PREV_COMPONENT:
+                    self._components[i + 1].state == PipeComponentState.WAIT_PREV_COMPONENT:
                 self._components[i].continue_()
-                self._components[i+1].continue_()
+                self._components[i + 1].continue_()
 
+        return worked
