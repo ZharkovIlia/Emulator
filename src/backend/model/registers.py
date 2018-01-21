@@ -164,6 +164,7 @@ class StackPointer(OnlyEvenValueRegister):
             raise RegisterOddValue()
         self._lower_bound = value
 
+
 class ProgramCounter(OnlyEvenValueRegister):
     def __init__(self):
         super(ProgramCounter, self).__init__()

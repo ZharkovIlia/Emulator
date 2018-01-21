@@ -5,7 +5,7 @@ from bitarray import bitarray
 
 from src.backend.engine.cash import CashMemory
 from src.backend.engine.pool_registers import PoolRegisters
-from src.backend.model.commands import AbstractCommand, Operation
+from src.backend.model.commands import AbstractCommand, Operation, JumpCommand, BranchCommand
 from src.backend.model.programstatus import ProgramStatus
 
 
@@ -134,7 +134,7 @@ class InstructionFetcher(PipeComponent):
                     self._opnum += 1
                     self._next_instruction = None
 
-                    success = self._registers.inc(regnum=self.PC, value=2)
+                    success = self._registers.inc_fetch(regnum=self.PC, value=2)
                     assert success
 
             else:
@@ -150,7 +150,7 @@ class InstructionFetcher(PipeComponent):
                 elif success and self._opnum == 0:
                     self._state = PipeComponentState.FINISHED
                     self._opnum += 1
-                    success = self._registers.inc(regnum=self.PC, value=2)
+                    success = self._registers.inc_fetch(regnum=self.PC, value=2)
                     assert success
 
                 else:
@@ -169,7 +169,7 @@ class InstructionFetcher(PipeComponent):
                 self._state = PipeComponentState.FINISHED
                 self._opnum += 1
 
-                success = self._registers.inc(regnum=self.PC, value=2)
+                success = self._registers.inc_fetch(regnum=self.PC, value=2)
                 assert success
 
         if self._opnum == len(self._commandsQueue[0]) and self._state != PipeComponentState.FINISHED:
@@ -279,10 +279,9 @@ class OperandsFetcher(PipeComponent):
                                            PipeComponentState.WAIT_NEXT_COMMAND):
             return False
 
-        if len(self._commandsQueue[0]["ops"]) == 0:
-            self._num_block = 0
-            self._block_reg()
-            assert self._state == PipeComponentState.FINISHED
+        if len(self._commandsQueue[0]["ops"]) == 0 and len(self._commandsQueue[0]["blreg"]) == 0 \
+                and len(self._commandsQueue[0]["blmem"]) == 0:
+            self._state = PipeComponentState.FINISHED
             return False
 
         self._worked = True
@@ -295,13 +294,16 @@ class OperandsFetcher(PipeComponent):
             self._block_mem()
             return True
 
+        if len(self._commandsQueue[0]["ops"]) == 0:
+            self._num_block = 0
+            self._block_reg()
+            return True
+
         self._execute_null_cycle_operations()
         if self._opnum == len(self._commandsQueue[0]["ops"]):
             self._num_block = 0
             self._block_reg()
-            if self._state == PipeComponentState.FINISHED:
-                self._worked = False
-            return self._worked
+            return True
 
         op = self._commandsQueue[0]["ops"][self._opnum]
         optype = op["operation"]
@@ -337,14 +339,14 @@ class OperandsFetcher(PipeComponent):
             elif optype == Operation.INCREMENT_REGISTER:
                 reg = op["register"]
                 assert reg != 7
-                success = self._registers.inc(regnum=reg, value=op["value"])
+                success = self._registers.inc_fetch(regnum=reg, value=op["value"])
                 if success:
                     self._opnum += 1
 
             elif optype == Operation.DECREMENT_REGISTER:
                 reg = op["register"]
                 assert reg != 7
-                success = self._registers.dec(regnum=reg, value=op["value"])
+                success = self._registers.dec_fetch(regnum=reg, value=op["value"])
                 if success:
                     self._opnum += 1
 
@@ -385,10 +387,6 @@ class OperandsFetcher(PipeComponent):
                 break
 
     def _block_reg(self):
-        if not self._registers.enabled:
-            self._state = PipeComponentState.FINISHED
-            return
-
         while self._num_block < len(self._commandsQueue[0]["blreg"]):
             success = self._registers.block(self._commandsQueue[0]["blreg"][self._num_block], True)
             if not success:
@@ -427,7 +425,7 @@ class OperandsFetcher(PipeComponent):
                     self._state = PipeComponentState.IN_PROGRESS
                     self._num_block += 1
 
-        if self._num_block < len(self._commandsQueue[0]["blreg"]):
+        if self._num_block < len(self._commandsQueue[0]["blmem"]):
             self._blocking_mem = True
         else:
             self._blocking_mem = False
@@ -554,7 +552,7 @@ class DataWriter(PipeComponent):
 
             elif optype == Operation.BRANCH_IF:
                 if op["if"]():
-                    success = self._registers.inc(regnum=self.PC, value=op["offset"])
+                    success = self._registers.inc_store(regnum=self.PC, value=op["offset"])
                     assert success
 
                 self._opnum += 1
@@ -576,9 +574,6 @@ class DataWriter(PipeComponent):
         return True
 
     def _unblock_reg_if_stored(self, regnum: int):
-        if not self._registers.enabled:
-            return
-
         stored = True
         for opnum in range(self._opnum, len(self._commandsQueue[0])):
             op = self._commandsQueue[0][opnum]
@@ -626,9 +621,10 @@ class Pipe:
         self._dmem = dmem
 
         self._enabled = enabled
+        self._branch = False
         self.clear_statistics()
         self._add_command()
-        self._instructions += 1
+        #self._instructions += 1
 
     @property
     def enabled(self):
@@ -649,13 +645,14 @@ class Pipe:
     def cycle(self) -> bool:
         self._cycles += 1
         new_command = False
-        if self.empty() or self._enabled and self._components[0].state == PipeComponentState.WAIT_NEXT_COMMAND:
+        if self.empty() or self._enabled and self._components[0].state == PipeComponentState.WAIT_NEXT_COMMAND \
+                and not self._branch:
             new_command = True
             self._add_command()
 
         new_command = self._progress(fetch_new_instruction=True) or new_command
-        if new_command:
-            self._instructions += 1
+        #if new_command:
+        #    self._instructions += 1
 
         return new_command
 
@@ -666,6 +663,7 @@ class Pipe:
             self._progress(fetch_new_instruction=False)
 
         self._cycles += cycles
+        self._branch = False
         return cycles
 
     def empty(self) -> bool:
@@ -696,9 +694,10 @@ class Pipe:
         for pos in range(len(self._components) - 1, -1, -1):
             worked = self._advance(dmem_ready, imem_ready, pos) or worked
 
-        if fetch_new_instruction and (self.empty() or self._enabled and
+        if fetch_new_instruction and (self.empty() or self._enabled and not self._branch and
                                       self._components[0].state == PipeComponentState.WAIT_NEXT_COMMAND):
             new_command = True
+            self._branch = False
             self._add_command()
 
         if self._enabled or not worked:
@@ -729,6 +728,10 @@ class Pipe:
         return worked
 
     def _add_command(self):
+        self._instructions += 1
         command = self._commands[self._pc.get(size="word", signed=False)]
+        if isinstance(command, JumpCommand) or isinstance(command, BranchCommand):
+            self._branch = True
+
         for component in self._components:
             component.add_command(command)

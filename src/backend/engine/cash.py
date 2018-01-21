@@ -70,8 +70,8 @@ class CashMemory:
         self._rwb: str = None
         self.clear_statistics()
         for string in range(0, self.NUM_STRINGS):
-            self.strings.append([CashLine(string, self.ASSOCIATION_DEGREE - string - 1)
-                                 for _ in range(0, self.ASSOCIATION_DEGREE)])
+            self.strings.append([CashLine(string, self.ASSOCIATION_DEGREE - i - 1)
+                                 for i in range(0, self.ASSOCIATION_DEGREE)])
 
     @property
     def enabled(self):
@@ -180,13 +180,15 @@ class CashMemory:
             return False
 
         if not self._enabled or self._memory.operation_on_device(address):
-            raise CashWrongBlockException()
+            #raise CashWrongBlockException()
+            return True
 
         (string, tag) = self._get_string_tag(address)
         line = self._find(string, tag)
 
         if line is None and not self._busy:
             self._eject(string, tag, address, 'b')
+            return False
 
         if line is None:
             return False
@@ -206,18 +208,15 @@ class CashMemory:
         return False
 
     def _load_if_disabled(self, address: int, size: str) -> (bool, bitarray):
-        if self._rwb == 'w':
+        if self._busy:
             return False, None
 
-        if self._address == address and not self._busy:
+        if self._address == address and self._rwb == 'r':
             self._rwb = None
             self._address = -1
             return True, self._memory.load(address, size)
 
-        if self._address != -1:
-            return False, None
-
-        if not self._busy:
+        if self._address == -1:
             self._rwb = 'r'
             self._address = address
             self._bus_request = BusRequest(2)
@@ -226,19 +225,16 @@ class CashMemory:
         return False, None
 
     def _store_if_disabled(self, address: int, size: str, value: bitarray) -> bool:
-        if self._rwb == 'r':
-            return False
+        if self._busy:
+            return False, None
 
-        if self._address == address and not self._busy:
+        if self._address == address and self._rwb == 'w':
             self._rwb = None
             self._address = -1
             self._memory.store(address, size, value)
             return True
 
-        if self._address != -1:
-            return False
-
-        if not self._busy:
+        if self._address == -1:
             self._rwb = 'w'
             self._address = address
             self._bus_request = BusRequest(2)
