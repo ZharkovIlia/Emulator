@@ -9,45 +9,50 @@ class PoolRegisters:
         self._registers = registers
         self._blocked = [False for _ in range(8)]
         self._enabled = enabled
+        self._reader = self.reader(self)
+        self._writer = self.writer(self)
 
-    def get(self, regnum: int, size: str, signed: bool) -> (bool, int):
-        if self._blocked[regnum]:
-            return False, None
-        return True, self._registers[regnum].get(size, signed)
+        self.get = self._reader(lambda regnum, size, signed: self._registers[regnum].get(size=size, signed=signed))
+        self.set = self._writer(lambda regnum, size, signed, value:
+                                self._registers[regnum].set(size=size, signed=signed, value=value))
+        self.byte = self._reader(lambda regnum: self._registers[regnum].byte())
+        self.word = self._reader(lambda regnum: self._registers[regnum].word())
+        self.set_word = self._writer(lambda regnum, value: self._registers[regnum].set_word(value=value))
+        self.set_byte = self._writer(lambda regnum, value: self._registers[regnum].set_byte(value=value))
+        self.inc = self._reader(lambda regnum, value: self._registers[regnum].inc(value=value))
+        self.dec = self._reader(lambda regnum, value: self._registers[regnum].dec(value=value))
 
-    def set(self, regnum: int, size: str, signed: bool, value: bitarray) -> bool:
-        self._registers[regnum].set(size, signed)
-        return True
+    class reader:
+        def __init__(self, pool):
+            self._pool = pool
 
-    def byte(self, regnum: int) -> (bool, bitarray):
-        if self._blocked[regnum]:
-            return False, None
-        return True, self._registers[regnum].byte()
 
-    def word(self, regnum: int) -> (bool, bitarray):
-        if self._blocked[regnum]:
-            return False, None
-        return True, self._registers[regnum].word()
+        def __call__(self, call):
+            def wrapper(regnum: int, **kwargs):
+                result = call(regnum=regnum, **kwargs)
+                if self._pool._blocked[regnum]:
+                    if result is None:
+                        return False
+                    else:
+                        return False, None
+                else:
+                    if result is None:
+                        return True
+                    else:
+                        return True, result
 
-    def set_byte(self, regnum: int, value: bitarray) -> bool:
-        self._registers[regnum].set_byte(value)
-        return True
+            return wrapper
 
-    def set_word(self, regnum: int, value: bitarray) -> bool:
-        self._registers[regnum].set_word(value)
-        return True
+    class writer:
+        def __init__(self, pool):
+            self._pool = pool
 
-    def inc(self, regnum: int, value: int) -> bool:
-        if self._blocked[regnum]:
-            return False
-        self._registers[regnum].inc(value)
-        return True
+        def __call__(self, call):
+            def wrapper(**kwargs):
+                call(**kwargs)
+                return True
 
-    def dec(self, regnum: int, value: int) -> bool:
-        if self._blocked[regnum]:
-            return False
-        self._registers[regnum].dec(value)
-        return True
+            return wrapper
 
     @property
     def enabled(self):
@@ -62,7 +67,7 @@ class PoolRegisters:
             self._blocked[regnum] = block
             return True
 
-        if not block and not self._blocked:
+        if not block and not self._blocked[regnum]:
             raise PoolRegistersUnblockException()
 
         return False

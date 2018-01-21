@@ -295,6 +295,14 @@ class OperandsFetcher(PipeComponent):
             self._block_mem()
             return True
 
+        self._execute_null_cycle_operations()
+        if self._opnum == len(self._commandsQueue[0]["ops"]):
+            self._num_block = 0
+            self._block_reg()
+            if self._state == PipeComponentState.FINISHED:
+                self._worked = False
+            return self._worked
+
         op = self._commandsQueue[0]["ops"][self._opnum]
         optype = op["operation"]
         if self._state == PipeComponentState.IN_PROGRESS:
@@ -342,13 +350,9 @@ class OperandsFetcher(PipeComponent):
 
             elif optype == Operation.EXECUTE:
                 cycles = op["cycles"]
-                if cycles in (0, 1):
+                if cycles == 1:
                     op["callback"]()
                     self._opnum += 1
-
-                if cycles == 0:
-                    self._worked = False
-                    self.cycle()
 
                 if cycles > 1:
                     self._execution = Execution(cycles, lambda: op["callback"]())
@@ -365,7 +369,6 @@ class OperandsFetcher(PipeComponent):
                     op["callback"](data)
                     self._opnum += 1
 
-        self._execute_null_cycle_operations()
         if self._opnum == len(self._commandsQueue[0]["ops"]):
             self._num_block = 0
             self._block_reg()
@@ -551,9 +554,11 @@ class DataWriter(PipeComponent):
 
             elif optype == Operation.BRANCH_IF:
                 if op["if"]():
-                    success = self._registers.inc(regnum=7, value=op["offset"])
+                    success = self._registers.inc(regnum=self.PC, value=op["offset"])
                     assert success
-                    self._unblock_reg_if_stored(self.PC)
+
+                self._opnum += 1
+                self._unblock_reg_if_stored(self.PC)
 
         elif self._state == PipeComponentState.WAIT_DATA:
             assert optype == Operation.STORE_ADDRESS
@@ -571,6 +576,9 @@ class DataWriter(PipeComponent):
         return True
 
     def _unblock_reg_if_stored(self, regnum: int):
+        if not self._registers.enabled:
+            return
+
         stored = True
         for opnum in range(self._opnum, len(self._commandsQueue[0])):
             op = self._commandsQueue[0][opnum]
@@ -645,7 +653,7 @@ class Pipe:
             new_command = True
             self._add_command()
 
-        new_command = new_command or self._progress(fetch_new_instruction=True)
+        new_command = self._progress(fetch_new_instruction=True) or new_command
         if new_command:
             self._instructions += 1
 

@@ -21,7 +21,7 @@ class CPU:
             command = Commands.get_command_by_code(code=instr, program_status=self._program_status)
         else:
             command = self._commands[self._registers[CPU.ProgramCounter].get(size="word", signed=False)]
-            self.fetch_next_instruction()
+            self.fetch_next_instruction(size="word")
 
         for op in command:
             optype = op["operation"]

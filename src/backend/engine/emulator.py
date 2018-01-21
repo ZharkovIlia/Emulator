@@ -12,9 +12,6 @@ from src.backend.utils.romfiller import ROMFiller
 from src.backend.model.memory import Memory, MemoryPart
 from src.backend.model.registers import Register, StackPointer, ProgramCounter
 from src.backend.model.programstatus import ProgramStatus
-from src.backend.engine.cpu import CPU
-
-from bitarray import bitarray
 
 from src.backend.utils.routines import Routines
 
@@ -47,14 +44,10 @@ class Emulator:
         self._pool_registers = PoolRegisters(self._registers, False)
         self._pipe = Pipe(dmem=self._dcash, imem=self._icash, pool_registers=self._pool_registers,
                           ps=self._program_status, commands=self._commands, enabled=False)
-        #self._cpu = CPU(memory=self._memory, registers=self._registers,
-        #                program_status=self._program_status, commands=self._commands)
 
     def step(self):
         while not self._pipe.cycle():
             pass
-        print(self._pipe.cycles)
-        print(self._pipe.instructions)
         self._memory.video.show()
 
     def run(self):
