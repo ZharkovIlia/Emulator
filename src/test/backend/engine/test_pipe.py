@@ -638,6 +638,16 @@ class PipeTest(unittest.TestCase):
         self.exec()
         self.assertEqual(self.registers[7].word().to01(), "0000000011111110")
 
+    def test_rti(self):
+        self.memory.store(address=256, size="word", value=bitarray("0000000000000010"))
+        self.memory.store(address=16380, size="word", value=bitarray("0101001111111110"))
+        self.memory.store(address=16382, size="word", value=bitarray("1011000000000000"))
+        self.registers[6].set_word(value=bitarray("0011111111111100"))
+        self.ps.clear()
+        self.exec()
+        self.assertEqual(self.ps.bits, dict(V=True, N=False, C=True, Z=True))
+        self.assertEqual(self.registers[6].word().to01(), "0100000000000000")
+        self.assertEqual(self.registers[7].word().to01(), "0101001111111110")
 
 if __name__ == "__main__":
     unittest.main()

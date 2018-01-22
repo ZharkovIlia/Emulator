@@ -591,6 +591,58 @@ class MARKCommand(JumpCommand):
                                  "value": lambda: self._tmp_r5.word()})
 
 
+class RTICommand(JumpCommand):
+    def __init__(self, matcher, **kwargs):
+        super(RTICommand, self).__init__(**kwargs)
+        self._add_decode()
+        self._add_all_operations()
+
+    def _add_all_operations(self):
+        self._tmp_sp = Register()
+        self._inner_register_1 = Register()
+        self._inner_register_2 = Register()
+
+        self._operations.append({"operation": Operation.FETCH_REGISTER,
+                                 "register": 6,
+                                 "size": "word",
+                                 "callback": self._tmp_sp.set_word})
+
+        self._operations.append({"operation": Operation.FETCH_ADDRESS,
+                                 "address": lambda: self._tmp_sp.get(size="word", signed=False),
+                                 "size": "word",
+                                 "callback": self._inner_register_1.set_word})
+
+        self._operations.append({"operation": Operation.EXECUTE,
+                                 "callback": lambda: self._tmp_sp.inc(value=2),
+                                 "cycles": 1})
+
+        self._operations.append({"operation": Operation.FETCH_ADDRESS,
+                                 "address": lambda: self._tmp_sp.get(size="word", signed=False),
+                                 "size": "word",
+                                 "callback": self._inner_register_2.set_word})
+
+        self._operations.append({"operation": Operation.EXECUTE,
+                                 "callback": lambda: self._tmp_sp.inc(value=2),
+                                 "cycles": 1})
+
+        self._operations.append({"operation": Operation.EXECUTE,
+                                 "callback": lambda: self._program_status.set_word(self._inner_register_2.word()),
+                                 "cycles": 1})
+
+        self._operations.append({"operation": Operation.STORE_REGISTER,
+                                 "register": 6,
+                                 "size": "word",
+                                 "value": lambda: self._tmp_sp.word()})
+
+        self._add_jump()
+
+    def _add_jump(self):
+        self._operations.append({"operation": Operation.STORE_REGISTER,
+                                 "register": 7,
+                                 "size": "word",
+                                 "value": lambda: self._inner_register_1.word()})
+
+
 class CLRCommand(SingleOperandCommand):
     def __init__(self, **kwargs):
         super(CLRCommand, self).__init__(**kwargs)
@@ -1181,6 +1233,7 @@ class InstanceCommand(enum.Enum):
     RTS  = (               r'0000000010000' + _REG_PATTERN,              RTSCommand,  "RTS",  False, 0)
     MARK = (               r'0000110100' + _NUMBER_PATTERN,              MARKCommand, "MARK", False, 0)
     SOB  = (               r'0111111' + _REG_PATTERN + _SOB_OFFSET_PTRN, SOBCommand,  "SOB",  False, 7)
+    RTI  = (               r'0000000000000010',                          RTICommand,  "RTI",  False, 0)
 
     #BHIS = (               r'10000110'   + _OFFSET_PATTERN,              BHISCommand, "BHIS", False)
     #BLO  = (               r'10000111'   + _OFFSET_PATTERN,              BLOCommand,  "BLO",  False)
