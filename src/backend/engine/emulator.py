@@ -62,7 +62,7 @@ class Emulator:
     def step(self):
         while not self._pipe.cycle():
             pass
-        self._memory.video.show()
+        #self._memory.video.show()
 
     def run(self):
         while True:
@@ -156,7 +156,7 @@ class Emulator:
 
     @property
     def current_pc(self) -> int:
-        return self._pc.get(size="word", signed=False)
+        return self._pipe.last_instruction_address
 
     def _fill_ROM(self):
         self._glyphs = ROMFiller.get_glyphs(size=self.SIZE_FONT_16_WIDTH)

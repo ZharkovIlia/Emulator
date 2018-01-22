@@ -603,6 +603,7 @@ class Pipe:
 
         self.enabled = enabled
         self._branch = False
+        self._last_instruction_address = self._pc.get(size="word", signed=False)
         self.clear_statistics()
         self._add_command()
 
@@ -613,6 +614,10 @@ class Pipe:
     @property
     def instructions(self):
         return self._instructions
+
+    @property
+    def last_instruction_address(self):
+        return self._last_instruction_address
 
     def clear_statistics(self):
         self._instructions = 0
@@ -703,11 +708,12 @@ class Pipe:
 
     def _add_command(self):
         self._instructions += 1
+        self._last_instruction_address = self._pc.get(size="word", signed=False)
         if self._commands is None:
-            instr = self._imem.memory.load(address=self._pc.get(size="word", signed=False), size="word")
+            instr = self._imem.memory.load(address=self._last_instruction_address, size="word")
             command = Commands.get_command_by_code(code=instr, program_status=self._program_status)
         else:
-            command = self._commands[self._pc.get(size="word", signed=False)]
+            command = self._commands[self._last_instruction_address]
 
         if isinstance(command, JumpCommand) or isinstance(command, BranchCommand):
             self._branch = True
