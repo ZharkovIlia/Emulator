@@ -31,7 +31,7 @@ class CashBox(Box):
         self.emulator = emulator
         self.emulator.dcash.enabled = False
         self.emulator.icash.enabled = False
-        self.checkEnabled.setText("Cash enabled")
+        self.checkEnabled.setText("Enable cash")
         self.label[0].setText("Cash hits: ")
         self.label[1].setText("Cash misses: ")
         self.label[2].setText("Cash rate: ")
@@ -73,7 +73,7 @@ class PipeBox(Box):
         super().__init__(3)
         self.emulator = emulator
         self.emulator.pipe.enabled = False
-        self.checkEnabled.setText("Pipe enabled")
+        self.checkEnabled.setText("Enable pipe")
         self.label[0].setText("Cpu cycles: ")
         self.label[1].setText("Instructions: ")
         self.label[2].setText("cycles/instruction: ")
@@ -115,7 +115,6 @@ class ScreenField(QLabel):
         self.show_monitor(self.emulator.memory.video.image)
         self.emulator.memory.video.set_on_show(self.show_monitor)
         self.setFocusPolicy(Qt.ClickFocus)
-        #self.setAlignment(Qt.AlignCenter)
         self.setFixedSize(self.emulator.memory.video.mode.height,
                           self.emulator.memory.video.mode.width)
 
@@ -156,6 +155,12 @@ class Screen(QWidget):
         self.stop = QPushButton("stop", self)
         self.reset = QPushButton("reset", self)
 
+        self.clearStat = QPushButton("clear statistics", self)
+        self.clearStat.clicked.connect(self.clear)
+        cl = QHBoxLayout()
+        cl.addWidget(self.clearStat)
+        cl.setAlignment(Qt.AlignRight)
+
         buttons = QHBoxLayout()
         buttons.addWidget(self.start)
         buttons.addWidget(self.step)
@@ -181,6 +186,7 @@ class Screen(QWidget):
         layout.addLayout(buttons, 3, 0, 1, 2)
         layout.addWidget(self.cash, 4, 0)
         layout.addWidget(self.pipe, 4, 1)
+        layout.addLayout(cl, 5, 1)
         #layout.addLayout(stat, 5, 0, 1, 3)
 
         #layout = QVBoxLayout()
@@ -196,4 +202,11 @@ class Screen(QWidget):
         self.cash.reset(emu)
         self.pipe.reset(emu)
         self.screen.reset(emu)
+
+    def clear(self):
+        self.emulator.pipe.clear_statistics()
+        self.emulator.dcash.clear_statistics()
+        self.emulator.icash.clear_statistics()
+        self.cash.get_stat()
+        self.pipe.get_stat()
 

@@ -608,7 +608,8 @@ class Pipe:
         self.enabled = enabled
         self._branch = False
         self._last_instruction_address = self._pc.get(size="word", signed=False)
-        self.clear_statistics()
+        self._instructions = 0
+        self._cycles = 0
         self._add_command()
 
     @property
@@ -642,8 +643,10 @@ class Pipe:
         return self._last_instruction_address
 
     def clear_statistics(self):
+        self._lock.lock()
         self._instructions = 0
         self._cycles = 0
+        self._lock.unlock()
 
     def cycle(self) -> bool:
         self.cycles += 1
@@ -736,7 +739,7 @@ class Pipe:
 
     def _add_command(self):
 
-        self._instructions += 1
+        self.instructions += 1
         self._last_instruction_address = self._pc.get(size="word", signed=False)
 
         if self._commands is None:

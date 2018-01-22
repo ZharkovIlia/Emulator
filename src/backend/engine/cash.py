@@ -69,7 +69,8 @@ class CashMemory:
         self._address = -1
         self._rw: str = None
         self._lock = QMutex()
-        self.clear_statistics()
+        self._hits = 0
+        self._misses = 0
         for string in range(0, self.NUM_STRINGS):
             self._strings.append([CashLine(string, self.ASSOCIATION_DEGREE - i - 1)
                                   for i in range(0, self.ASSOCIATION_DEGREE)])
@@ -119,8 +120,10 @@ class CashMemory:
         return self._rw
 
     def clear_statistics(self):
+        self._lock.lock()
         self._hits = 0
         self._misses = 0
+        self._lock.unlock()
 
     def clear_address(self):
         self._address = -1
