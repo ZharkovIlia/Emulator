@@ -38,7 +38,7 @@ class CashBox(Box):
         self.labelEnabled.setText("Cash enabled")
         self.label[0].setText("Cash hits: ")
         self.label[1].setText("Cash misses: ")
-        self.label[2].setText("Rate: ")
+        self.label[2].setText("Cash rate: ")
         self.checkEnabled.stateChanged.connect(self.turn)
 
     def turn(self):
@@ -50,9 +50,9 @@ class PipeBox(Box):
         super().__init__(3)
         self.emulator = emulator
         self.labelEnabled.setText("Pipe enabled")
-        self.label[0].setText("Pipe cycles: ")
+        self.label[0].setText("cpu cycles: ")
         self.label[1].setText("Instructions: ")
-        self.label[2].setText("Instructions per cycle: ")
+        self.label[2].setText("cycles/instruction: ")
         self.checkEnabled.stateChanged.connect(self.turn)
 
     def turn(self):

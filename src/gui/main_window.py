@@ -51,7 +51,7 @@ class MainWindow(QWidget):
     def start(self):
         self.screen.cash.checkEnabled.setEnabled(False)
         self.screen.pipe.checkEnabled.setEnabled(False)
-        self.timer.start(100)
+        self.timer.start(50)
         self.screen.start.setEnabled(False)
         self.screen.step.setEnabled(False)
         self.screen.reset.setEnabled(False)
