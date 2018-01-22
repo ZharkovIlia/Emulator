@@ -39,6 +39,16 @@ class MemoryWrongConfiguration(MemoryException):
         super(MemoryWrongConfiguration, self).__init__(what="Wrong layout of memory and devices")
 
 
+class CashWrongBlockException(MemoryException):
+    def __init__(self):
+        super(CashWrongBlockException, self).__init__(what="Cash is disabled or address to block is address of device")
+
+
+class CashUnblockException(MemoryException):
+    def __init__(self):
+        super(CashUnblockException, self).__init__(what="Tried to unblock unblocked cash line")
+
+
 class RegisterException(EmulatorException):
     def __init__(self, what: str):
         super(RegisterException, self).__init__(what)
@@ -64,6 +74,12 @@ class StackOverflow(RegisterException):
     def __init__(self, sp):
         super(StackOverflow, self).__init__(what="Stack pointer is out of bounds")
         self.sp = sp
+
+
+class PoolRegistersUnblockException(RegisterException):
+    def __init__(self):
+        super(PoolRegistersUnblockException, self).__init__(what="Tried to unblock unblocked register")
+
 
 
 class ProgramStatusException(EmulatorException):
