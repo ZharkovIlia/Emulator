@@ -1,3 +1,6 @@
+from src.backend.engine.cash import CashMemory
+from src.backend.engine.pipe import Pipe
+from src.backend.engine.pool_registers import PoolRegisters
 from src.backend.model.commands import Commands
 from src.backend.model.video import VideoMode
 from src.backend.utils.assembler import Assembler
@@ -9,14 +12,13 @@ from src.backend.utils.romfiller import ROMFiller
 from src.backend.model.memory import Memory, MemoryPart
 from src.backend.model.registers import Register, StackPointer, ProgramCounter
 from src.backend.model.programstatus import ProgramStatus
-from src.backend.engine.cpu import CPU
-
-from bitarray import bitarray
 
 from src.backend.utils.routines import Routines
 
 
 class Emulator:
+    SIZE_FONT_16_WIDTH = 26
+
     def __init__(self, video_on_show=None):
         self._memory = Memory()
         self._memory.video.set_on_show(video_on_show)
@@ -31,25 +33,45 @@ class Emulator:
         self._sp.set_lower_bound(256)
 
         self._program_status = ProgramStatus()
-        self._cpu = CPU(memory=self._memory, registers=self._registers, program_status=self._program_status)
 
         self._breakpoints = set()
         self._instructions = {}
+        self._commands = {}
 
         self._fill_ROM()
+        self._icash = CashMemory(self._memory)
+        self._dcash = CashMemory(self._memory)
+        self._pool_registers = PoolRegisters(self._registers)
+        self._pipe = Pipe(dmem=self._dcash, imem=self._icash, pool_registers=self._pool_registers,
+                          ps=self._program_status, commands=self._commands, enabled=True)
 
         self.stopped = False
 
+    @property
+    def pipe(self):
+        return self._pipe
+
+    @property
+    def icash(self):
+        return self._icash
+
+    @property
+    def dcash(self):
+        return self._dcash
+
     def step(self):
-        self._cpu.execute_next()
+        while not self._pipe.cycle():
+            pass
         self._memory.video.show()
 
     def run(self):
         while True:
-            self._cpu.execute_next()
+            self.step()
             if self.current_pc in self._breakpoints or self.stopped:
                 break
 
+        print(self._pipe.cycles)
+        print(self._pipe.instructions)
         self._memory.video.show()
 
     def toggle_breakpoint(self, address: int):
@@ -137,7 +159,7 @@ class Emulator:
         return self._pc.get(size="word", signed=False)
 
     def _fill_ROM(self):
-        self._glyphs = ROMFiller.get_glyphs(size=26)
+        self._glyphs = ROMFiller.get_glyphs(size=self.SIZE_FONT_16_WIDTH)
         self._glyphs_start = MemoryPart.ROM.end - len(self._glyphs["data"])
         for i, v in enumerate(self._glyphs["data"]):
             self._memory.store(address=self._glyphs_start + i, size="byte", value=v)
@@ -151,18 +173,18 @@ class Emulator:
         for i, v in enumerate(init):
             self._memory.store(address=init_start + i*2, size="word", value=v)
 
-        draw_glyph = Routines.draw_glyph_16_mode_0(glyphs_start=self._glyphs_start, glyph_width=self._glyphs["width"],
-                                                   glyph_height=self._glyphs["max_height"],
-                                                   glyph_bitmap_size=self._glyphs["bitmap_size"],
-                                                   monitor_width=self._memory.video.mode.width,
-                                                   video_start=MemoryPart.VRAM.start,
-                                                   monitor_depth=self._memory.video.mode.depth)
+        draw_glyph = Routines.draw_glyph_mode_0(glyphs_start=self._glyphs_start, glyph_width=self._glyphs["width"],
+                                                glyph_height=self._glyphs["max_height"],
+                                                glyph_bitmap_size=self._glyphs["bitmap_size"],
+                                                monitor_width=self._memory.video.mode.width,
+                                                video_start=MemoryPart.VRAM.start,
+                                                monitor_depth=self._memory.video.mode.depth)
         draw_glyph_start = init_end
         draw_glyph_end = draw_glyph_start + len(draw_glyph) * 2
         for i, v in enumerate(draw_glyph):
             self._memory.store(address=draw_glyph_start + i*2, size="word", value=v)
 
-        mainloop = Routines.mainloop_16_mode_0(draw_glyph_start=draw_glyph_start, glyph_width=self._glyphs["width"])
+        mainloop = Routines.mainloop_mode_0(draw_glyph_start=draw_glyph_start, glyph_width=self._glyphs["width"])
         mainloop_start = draw_glyph_end
         mainloop_end = mainloop_start + len(mainloop) * 2
         for i, v in enumerate(mainloop):
@@ -198,6 +220,8 @@ class Emulator:
             try:
                 com = Commands.get_command_by_code(code=self._memory.load(size="word", address=addr),
                                                    program_status=tmp_ps)
+                self._commands[addr] = com
+
             except UnknownCommand:
                 self._instructions[addr].set_state(state=DisasmState.NOT_AN_INSTRUCTION)
                 continue

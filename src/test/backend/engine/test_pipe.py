@@ -1,13 +1,15 @@
 import unittest
 from bitarray import bitarray
 
-from src.backend.engine.cpu import CPU
+from src.backend.engine.cash import CashMemory
+from src.backend.engine.pipe import Pipe
+from src.backend.engine.pool_registers import PoolRegisters
 from src.backend.model.memory import Memory
 from src.backend.model.programstatus import ProgramStatus
 from src.backend.model.registers import Register, ProgramCounter, StackPointer
 
 
-class CPUTest(unittest.TestCase):
+class PipeTest(unittest.TestCase):
     def setUp(self):
         self.registers = list(Register() for _ in range(6))
         self.registers.append(StackPointer())
@@ -25,50 +27,57 @@ class CPUTest(unittest.TestCase):
         self.ps = ProgramStatus()
         self.ps.set(bit="N", value=True)
         self.ps.set(bit="C", value=True)
-        self.cpu = CPU(memory=self.memory, registers=self.registers, program_status=self.ps)
+        self.icash = CashMemory(self.memory, False)
+        self.dcash = CashMemory(self.memory, False)
+        self.pool_registers = PoolRegisters(self.registers)
+
+    def exec(self):
+        self.pipe = Pipe(dmem=self.dcash, imem=self.icash, pool_registers=self.pool_registers,
+                         ps=self.ps, commands=None, enabled=False)
+        self.pipe.barrier()
 
     def test_clr_program_status_correct(self):
         self.memory.store(address=256, size="word", value=bitarray("0000101000000001"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=False, Z=True, C=False, V=False))
 
     def test_clr_word_mode_0_reg_general_purpose(self):
         self.memory.store(address=256, size="word", value=bitarray("0000101000000001"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[1].word().to01(), "0000000000000000")
 
     def test_clr_byte_mode_0_reg_general_purpose(self):
         self.memory.store(address=256, size="word", value=bitarray("1000101000000001"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[1].word().to01(), "0000000000000000")
 
     def test_clr_word_mode_1_reg_general_purpose(self):
         self.memory.store(address=256, size="word", value=bitarray("0000101000001001"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[1].word().to01(), "0000000010000000")
         self.assertEqual(self.memory.load(address=128, size="word").to01(), "0000000000000000")
 
     def test_clr_byte_mode_1_reg_general_purpose(self):
         self.memory.store(address=256, size="word", value=bitarray("1000101000001001"))
         self.registers[1].set_word(value=bitarray("0000000010000001"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.memory.load(address=128, size="word").to01(), "0000000011111110")
 
     def test_clr_word_mode_2_reg_general_purpose(self):
         self.memory.store(address=256, size="word", value=bitarray("0000101000010001"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[1].word().to01(), "0000000010000010")
         self.assertEqual(self.memory.load(address=128, size="word").to01(), "0000000000000000")
 
     def test_clr_byte_mode_2_reg_general_purpose(self):
         self.memory.store(address=256, size="word", value=bitarray("1000101000010001"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[1].word().to01(), "0000000010000001")
         self.assertEqual(self.memory.load(address=128, size="word").to01(), "0000000100000000")
 
     def test_clr_word_mode_3_reg_general_purpose(self):
         self.memory.store(address=256, size="word", value=bitarray("0000101000011001"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[1].word().to01(), "0000000010000010")
         self.assertEqual(self.memory.load(address=128, size="word").to01(), "0000000111111110")
         self.assertEqual(self.memory.load(address=510, size="word").to01(), "0000000000000000")
@@ -76,7 +85,7 @@ class CPUTest(unittest.TestCase):
     def test_clr_byte_mode_3_reg_general_purpose(self):
         self.memory.store(address=256, size="word", value=bitarray("1000101000011001"))
         self.memory.store(address=128, size="word", value=bitarray("0000000111111111"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[1].word().to01(), "0000000010000010")
         self.assertEqual(self.memory.load(address=128, size="word").to01(), "0000000111111111")
         self.assertEqual(self.memory.load(address=510, size="word").to01(), "0000000000001111")
@@ -84,21 +93,21 @@ class CPUTest(unittest.TestCase):
     def test_clr_word_mode_4_reg_general_purpose(self):
         self.memory.store(address=256, size="word", value=bitarray("0000101000100001"))
         self.registers[1].set_word(value=bitarray("0000000010000010"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[1].word().to01(), "0000000010000000")
         self.assertEqual(self.memory.load(address=128, size="word").to01(), "0000000000000000")
 
     def test_clr_byte_mode_4_reg_general_purpose(self):
         self.memory.store(address=256, size="word", value=bitarray("1000101000100001"))
         self.registers[1].set_word(value=bitarray("0000000010000010"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[1].word().to01(), "0000000010000001")
         self.assertEqual(self.memory.load(address=128, size="word").to01(), "0000000011111110")
 
     def test_clr_word_mode_5_reg_general_purpose(self):
         self.memory.store(address=256, size="word", value=bitarray("0000101000101001"))
         self.registers[1].set_word(value=bitarray("0000000010000010"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[1].word().to01(), "0000000010000000")
         self.assertEqual(self.memory.load(address=128, size="word").to01(), "0000000111111110")
         self.assertEqual(self.memory.load(address=510, size="word").to01(), "0000000000000000")
@@ -106,7 +115,7 @@ class CPUTest(unittest.TestCase):
     def test_clr_byte_mode_5_reg_general_purpose(self):
         self.memory.store(address=256, size="word", value=bitarray("1000101000101001"))
         self.registers[1].set_word(value=bitarray("0000000010000010"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[1].word().to01(), "0000000010000000")
         self.assertEqual(self.memory.load(address=128, size="word").to01(), "0000000111111110")
         self.assertEqual(self.memory.load(address=510, size="word").to01(), "0101010100000000")
@@ -115,7 +124,7 @@ class CPUTest(unittest.TestCase):
         self.memory.store(address=256, size="word", value=bitarray("0000101000110001"))
         self.memory.store(address=258, size="word", value=bitarray("0000000000000100"))
         self.registers[1].set_word(value=bitarray("0000000001111100"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[1].word().to01(), "0000000001111100")
         self.assertEqual(self.memory.load(address=128, size="word").to01(), "0000000000000000")
         self.assertEqual(self.registers[7].get(size="word", signed=False), 260)
@@ -124,7 +133,7 @@ class CPUTest(unittest.TestCase):
         self.memory.store(address=256, size="word", value=bitarray("1000101000110001"))
         self.memory.store(address=258, size="word", value=bitarray("0000000000000101"))
         self.registers[1].set_word(value=bitarray("0000000001111100"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[1].word().to01(), "0000000001111100")
         self.assertEqual(self.memory.load(address=258, size="word").to01(), "0000000000000101")
         self.assertEqual(self.memory.load(address=128, size="word").to01(), "0000000011111110")
@@ -133,7 +142,7 @@ class CPUTest(unittest.TestCase):
         self.memory.store(address=256, size="word", value=bitarray("0000101000111001"))
         self.memory.store(address=258, size="word", value=bitarray("0000000000000100"))
         self.registers[1].set_word(value=bitarray("0000000001111100"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[1].word().to01(), "0000000001111100")
         self.assertEqual(self.memory.load(address=128, size="word").to01(), "0000000111111110")
         self.assertEqual(self.registers[7].get(size="word", signed=False), 260)
@@ -144,49 +153,49 @@ class CPUTest(unittest.TestCase):
         self.memory.store(address=258, size="word", value=bitarray("0000000000000100"))
         self.memory.store(address=128, size="word", value=bitarray("0000000111111111"))
         self.registers[1].set_word(value=bitarray("0000000001111100"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.memory.load(address=128, size="word").to01(), "0000000111111111")
         self.assertEqual(self.memory.load(address=510, size="word").to01(), "0000000000001111")
 
-    def test_clr_word_mode_2_reg_pc(self):
-        self.memory.store(address=256, size="word", value=bitarray("0000101000010111"))
-        self.memory.store(address=258, size="word", value=bitarray("0000010101111111"))
-        self.cpu.execute_next()
-        self.assertEqual(self.registers[7].get(size="word", signed=False), 260)
-        self.assertEqual(self.memory.load(address=258, size="word").to01(), "0000000000000000")
+    def test_mov_word_mode_2_reg_pc(self):
+        self.memory.store(address=256, size="word", value=bitarray("0001010111000010"))
+        self.memory.store(address=258, size="word", value=bitarray("0000000011000000"))
+        self.registers[2].set_word(value=bitarray("1000010101111011"))
+        self.exec()
+        self.assertEqual(self.registers[2].word().to01(), "0000000011000000")
 
-    def test_clr_byte_mode_2_reg_pc(self):
-        self.memory.store(address=256, size="word", value=bitarray("1000101000010111"))
-        self.memory.store(address=258, size="word", value=bitarray("0000010101111111"))
-        self.cpu.execute_next()
-        self.assertEqual(self.registers[7].get(size="word", signed=False), 260)
-        self.assertEqual(self.memory.load(address=258, size="word").to01(), "0000010100000000")
+    def test_mov_byte_mode_2_reg_pc(self):
+        self.memory.store(address=256, size="word", value=bitarray("1001010111000010"))
+        self.memory.store(address=258, size="word", value=bitarray("0000000011000000"))
+        self.registers[2].set_word(value=bitarray("1000010101111011"))
+        self.exec()
+        self.assertEqual(self.registers[2].word().to01(), "1111111111000000")
 
-    def test_clr_word_mode_3_reg_pc(self):
-        self.memory.store(address=256, size="word", value=bitarray("0000101000011111"))
+    def test_mov_word_mode_3_reg_pc(self):
+        self.memory.store(address=256, size="word", value=bitarray("0001011111000010"))
         self.memory.store(address=258, size="word", value=bitarray("0000000111111110"))
-        self.cpu.execute_next()
-        self.assertEqual(self.registers[7].get(size="word", signed=False), 260)
-        self.assertEqual(self.memory.load(address=510, size="word").to01(), "0000000000000000")
+        self.registers[2].set_word(value=bitarray("1000010101111011"))
+        self.exec()
+        self.assertEqual(self.registers[2].word().to01(), "0101010100001111")
 
-    def test_clr_byte_mode_3_reg_pc(self):
-        self.memory.store(address=256, size="word", value=bitarray("1000101000011111"))
+    def test_mov_byte_mode_3_reg_pc(self):
+        self.memory.store(address=256, size="word", value=bitarray("1001011111000010"))
         self.memory.store(address=258, size="word", value=bitarray("0000000111111110"))
-        self.cpu.execute_next()
-        self.assertEqual(self.registers[7].get(size="word", signed=False), 260)
-        self.assertEqual(self.memory.load(address=510, size="word").to01(), "0101010100000000")
+        self.registers[2].set_word(value=bitarray("1000010101111011"))
+        self.exec()
+        self.assertEqual(self.registers[2].word().to01(), "0000000000001111")
 
     def test_clr_word_mode_6_reg_pc(self):
         self.memory.store(address=256, size="word", value=bitarray("0000101000110111"))
         self.memory.store(address=258, size="word", value=bitarray("0000000011111010"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[7].get(size="word", signed=False), 260)
         self.assertEqual(self.memory.load(address=510, size="word").to01(), "0000000000000000")
 
     def test_clr_byte_mode_6_reg_pc(self):
         self.memory.store(address=256, size="word", value=bitarray("1000101000110111"))
         self.memory.store(address=258, size="word", value=bitarray("0000000011111011"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[7].get(size="word", signed=False), 260)
         self.assertEqual(self.memory.load(address=510, size="word").to01(), "0000000000001111")
 
@@ -194,7 +203,7 @@ class CPUTest(unittest.TestCase):
         self.memory.store(address=256, size="word", value=bitarray("1000101000111111"))
         self.memory.store(address=258, size="word", value=bitarray("0000000011111010"))
         self.memory.store(address=510, size="word", value=bitarray("0101010100001110"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[7].get(size="word", signed=False), 260)
         self.assertEqual(self.memory.load(address=510, size="word").to01(), "0101010100001110")
         self.assertEqual(self.memory.load(address=21774, size="word").to01(), "1111111100000000")
@@ -202,7 +211,7 @@ class CPUTest(unittest.TestCase):
     def test_clr_high_byte_mode_7_reg_pc(self):
         self.memory.store(address=256, size="word", value=bitarray("1000101000111111"))
         self.memory.store(address=258, size="word", value=bitarray("0000000011111010"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[7].get(size="word", signed=False), 260)
         self.assertEqual(self.memory.load(address=510, size="word").to01(), "0101010100001111")
         self.assertEqual(self.memory.load(address=21774, size="word").to01(), "0000000011111111")
@@ -212,7 +221,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="Z", value=True)
         self.ps.set(bit="V", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=1, V=0))
         self.assertEqual(self.registers[2].word().to01(), "1000000011110000")
 
@@ -222,7 +231,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="N", value=True)
         self.ps.set(bit="V", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=0, Z=1, C=0, V=0))
         self.assertEqual(self.registers[2].word().to01(), "0000000000000000")
 
@@ -231,7 +240,7 @@ class CPUTest(unittest.TestCase):
         self.registers[2].set_word(value=bitarray("0111111111111111"))
         self.ps.clear()
         self.ps.set(bit="Z", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=0, V=1))
         self.assertEqual(self.registers[2].word().to01(), "1000000000000000")
 
@@ -241,7 +250,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="N", value=True)
         self.ps.set(bit="V", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=0, Z=1, C=0, V=0))
         self.assertEqual(self.registers[2].word().to01(), "0000000000000000")
 
@@ -251,7 +260,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="N", value=True)
         self.ps.set(bit="Z", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=0, Z=0, C=0, V=1))
         self.assertEqual(self.registers[2].word().to01(), "0111111111111111")
 
@@ -261,7 +270,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="Z", value=True)
         self.ps.set(bit="V", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=1, V=0))
         self.assertEqual(self.registers[2].word().to01(), "1000000000000001")
 
@@ -271,7 +280,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="Z", value=True)
         self.ps.set(bit="N", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=1, V=1))
         self.assertEqual(self.registers[2].word().to01(), "1000000000000000")
 
@@ -280,7 +289,7 @@ class CPUTest(unittest.TestCase):
         self.registers[2].set_word(value=bitarray("0000000000000000"))
         self.ps.clear()
         self.ps.set(bit="C", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=0, Z=1, C=0, V=0))
         self.assertEqual(self.registers[2].word().to01(), "0000000000000000")
 
@@ -291,7 +300,7 @@ class CPUTest(unittest.TestCase):
         self.ps.set(bit="C", value=True)
         self.ps.set(bit="V", value=True)
         self.ps.set(bit="Z", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=0, V=0))
         self.assertEqual(self.registers[2].word().to01(), "1000000000000000")
 
@@ -301,7 +310,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="V", value=True)
         self.ps.set(bit="Z", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=1, V=0))
         self.assertEqual(self.registers[2].word().to01(), "1101100000000000")
 
@@ -310,7 +319,7 @@ class CPUTest(unittest.TestCase):
         self.registers[2].set_word(value=bitarray("0000000000000001"))
         self.ps.clear()
         self.ps.set(bit="N", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=0, Z=1, C=1, V=1))
         self.assertEqual(self.registers[2].word().to01(), "0000000000000000")
 
@@ -320,7 +329,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="N", value=True)
         self.ps.set(bit="Z", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=0, Z=0, C=1, V=1))
         self.assertEqual(self.registers[2].word().to01(), "0110000000000010")
 
@@ -330,7 +339,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="Z", value=True)
         self.ps.set(bit="C", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=0, V=1))
         self.assertEqual(self.registers[2].word().to01(), "1000000000000000")
 
@@ -341,7 +350,7 @@ class CPUTest(unittest.TestCase):
         self.ps.set(bit="C", value=True)
         self.ps.set(bit="V", value=True)
         self.ps.set(bit="Z", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=1, V=0))
         self.assertEqual(self.registers[2].word().to01(), "1001100000000000")
 
@@ -351,7 +360,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="V", value=True)
         self.ps.set(bit="Z", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=1, V=0))
         self.assertEqual(self.registers[2].word().to01(), "1000000000000000")
 
@@ -362,7 +371,7 @@ class CPUTest(unittest.TestCase):
         self.ps.set(bit="V", value=True)
         self.ps.set(bit="C", value=True)
         self.ps.set(bit="Z", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=0, V=0))
         self.assertEqual(self.registers[2].word().to01(), "0000000011111111")
 
@@ -373,7 +382,7 @@ class CPUTest(unittest.TestCase):
         self.ps.set(bit="C", value=True)
         self.ps.set(bit="V", value=True)
         self.ps.set(bit="N", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=0, Z=1, C=1, V=0))
         self.assertEqual(self.registers[2].word().to01(), "0000000000000000")
 
@@ -383,7 +392,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="C", value=True)
         self.ps.set(bit="Z", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=0, V=1))
         self.assertEqual(self.registers[2].word().to01(), "1000000000000000")
 
@@ -394,7 +403,7 @@ class CPUTest(unittest.TestCase):
         self.ps.set(bit="V", value=True)
         self.ps.set(bit="Z", value=True)
         self.ps.set(bit="C", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=0, V=0))
         self.assertEqual(self.registers[2].word().to01(), "1111111111111111")
 
@@ -405,7 +414,7 @@ class CPUTest(unittest.TestCase):
         self.ps.set(bit="C", value=True)
         self.ps.set(bit="N", value=True)
         self.ps.set(bit="Z", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=0, Z=0, C=1, V=1))
         self.assertEqual(self.registers[2].word().to01(), "0111111111111111")
 
@@ -416,7 +425,7 @@ class CPUTest(unittest.TestCase):
         self.ps.set(bit="V", value=True)
         self.ps.set(bit="N", value=True)
         self.ps.set(bit="Z", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=0, V=1))
         self.assertEqual(self.registers[2].word().to01(), "1111111111111111")
 
@@ -424,7 +433,7 @@ class CPUTest(unittest.TestCase):
         self.memory.store(address=256, size="word", value=bitarray("0000110111000010"))
         self.registers[2].set_word(value=bitarray("1000010000011011"))
         self.ps.clear()
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=0, Z=1, C=0, V=0))
         self.assertEqual(self.registers[2].word().to01(), "0000000000000000")
 
@@ -435,7 +444,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="Z", value=True)
         self.ps.set(bit="V", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=0, V=0))
         self.assertEqual(self.registers[2].word().to01(), "1111111111000000")
 
@@ -446,7 +455,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="Z", value=True)
         self.ps.set(bit="V", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=0, V=0))
         self.assertEqual(self.registers[2].word().to01(), "0000000111111111")
         self.assertEqual(self.memory.load(address=510, size="word").to01(), "1100000000001111")
@@ -459,7 +468,7 @@ class CPUTest(unittest.TestCase):
         self.ps.set(bit="Z", value=True)
         self.ps.set(bit="C", value=True)
         self.ps.set(bit="N", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=0, Z=0, C=0, V=1))
         self.assertEqual(self.registers[3].word().to01(), "1000100010100101")
         self.assertEqual(self.registers[2].word().to01(), "0111111111111111")
@@ -470,7 +479,7 @@ class CPUTest(unittest.TestCase):
         self.registers[2].set_word(value=bitarray("1000000000000000"))
         self.ps.clear()
         self.ps.set(bit="Z", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=1, V=1))
 
     def test_add_v_set_c_set(self):
@@ -480,7 +489,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="N", value=True)
         self.ps.set(bit="Z", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=0, Z=0, C=1, V=1))
         self.assertEqual(self.registers[2].word().to01(), "0000000000000001")
 
@@ -492,7 +501,7 @@ class CPUTest(unittest.TestCase):
         self.ps.set(bit="Z", value=True)
         self.ps.set(bit="C", value=True)
         self.ps.set(bit="N", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=0, Z=0, C=0, V=1))
         self.assertEqual(self.registers[3].word().to01(), "0111111111111111")
         self.assertEqual(self.registers[2].word().to01(), "0000100010100110")
@@ -504,7 +513,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="V", value=True)
         self.ps.set(bit="N", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=0, Z=1, C=0, V=0))
         self.assertEqual(self.registers[3].word().to01(), "0111011101011010")
         self.assertEqual(self.registers[2].word().to01(), "1000100010100101")
@@ -516,7 +525,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="Z", value=True)
         self.ps.set(bit="V", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=0, V=0))
         self.assertEqual(self.registers[3].word().to01(), "0111011111011010")
         self.assertEqual(self.registers[2].word().to01(), "1000100000100101")
@@ -528,7 +537,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="Z", value=True)
         self.ps.set(bit="V", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=0, V=0))
         self.assertEqual(self.registers[3].word().to01(), "0111011111011010")
         self.assertEqual(self.registers[2].word().to01(), "1111111111111111")
@@ -541,7 +550,7 @@ class CPUTest(unittest.TestCase):
         self.ps.set(bit="C", value=True)
         self.ps.set(bit="Z", value=True)
         self.ps.set(bit="V", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=0, Z=0, C=1, V=0))
         self.assertEqual(self.registers[2].word().to01(), "0111111111111111")
         self.assertEqual(self.registers[3].word().to01(), "0000000000000000")
@@ -553,7 +562,7 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="Z", value=True)
         self.ps.set(bit="V", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=1, V=0))
         self.assertEqual(self.registers[2].word().to01(), "0000000000000100")
         self.assertEqual(self.registers[3].word().to01(), "1111111111111111")
@@ -565,69 +574,69 @@ class CPUTest(unittest.TestCase):
         self.ps.clear()
         self.ps.set(bit="Z", value=True)
         self.ps.set(bit="V", value=True)
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.ps.bits, dict(N=1, Z=0, C=0, V=0))
         self.assertEqual(self.registers[3].word().to01(), "0111011111011010")
         self.assertEqual(self.registers[2].word().to01(), "1111111101111111")
 
     def test_br_positive(self):
         self.memory.store(address=256, size="word", value=bitarray("0000000100000001"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[7].word().to01(), "0000000100000100")
 
     def test_br_negative(self):
         self.memory.store(address=256, size="word", value=bitarray("0000000111111111"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[7].word().to01(), "0000000100000000")
 
     def test_jmp(self):
         self.memory.store(address=256, size="word", value=bitarray("0000000001001010"))
         self.registers[2].set_word(value=bitarray("1000100010100100"))
-        self.cpu.execute_next()
+        self.exec()
         self.assertEqual(self.registers[7].word().to01(), "1000100010100100")
 
     def test_jsr(self):
         self.memory.store(address=256, size="word", value=bitarray("0000100101001010"))
         self.registers[2].set_word(value=bitarray("0001110010100100"))
         self.registers[5].set_word(value=bitarray("1000100010100100"))
-        self.registers[6].set_word(value=bitarray("1111111111111110"))
-        self.cpu.execute_next()
+        self.registers[6].set_word(value=bitarray("0100000000000000"))
+        self.exec()
         self.assertEqual(self.registers[5].word().to01(), "0000000100000010")
-        self.assertEqual(self.registers[6].word().to01(), "1111111111111100")
+        self.assertEqual(self.registers[6].word().to01(), "0011111111111110")
         self.assertEqual(self.registers[7].word().to01(), "0001110010100100")
-        self.assertEqual(self.memory.load(address=65532, size="word").to01(), "1000100010100100")
+        self.assertEqual(self.memory.load(address=16382, size="word").to01(), "1000100010100100")
 
     def test_rts(self):
         self.memory.store(address=256, size="word", value=bitarray("0000000010000101"))
-        self.memory.store(address=65532, size="word", value=bitarray("0101001111111111"))
+        self.memory.store(address=16382, size="word", value=bitarray("0101001111111111"))
         self.registers[5].set_word(value=bitarray("1000100010100100"))
-        self.registers[6].set_word(value=bitarray("1111111111111100"))
-        self.cpu.execute_next()
+        self.registers[6].set_word(value=bitarray("0011111111111110"))
+        self.exec()
         self.assertEqual(self.registers[5].word().to01(), "0101001111111111")
-        self.assertEqual(self.registers[6].word().to01(), "1111111111111110")
+        self.assertEqual(self.registers[6].word().to01(), "0100000000000000")
         self.assertEqual(self.registers[7].word().to01(), "1000100010100100")
 
     def test_mark(self):
         self.memory.store(address=256, size="word", value=bitarray("0000110100000010"))
-        self.memory.store(address=65532, size="word", value=bitarray("0101001111111111"))
+        self.memory.store(address=16382, size="word", value=bitarray("0101001111111111"))
         self.registers[5].set_word(value=bitarray("1000100010100100"))
-        self.registers[6].set_word(value=bitarray("1111111111111000"))
-        self.cpu.execute_next()
+        self.registers[6].set_word(value=bitarray("0011111111111010"))
+        self.exec()
         self.assertEqual(self.registers[5].word().to01(), "0101001111111111")
-        self.assertEqual(self.registers[6].word().to01(), "1111111111111110")
+        self.assertEqual(self.registers[6].word().to01(), "0100000000000000")
         self.assertEqual(self.registers[7].word().to01(), "1000100010100100")
 
     def test_sob_zero(self):
         self.memory.store(address=256, size="word", value=bitarray("0111111010000010"))
         self.registers[2].set_word(value=bitarray("0000000000000001"))
-        self.cpu.execute_next()
-        self.assertEqual(self.registers[7].word().to01(), "0000000011111110")
+        self.exec()
+        self.assertEqual(self.registers[7].word().to01(), "0000000100000010")
 
     def test_sob_non_zero(self):
         self.memory.store(address=256, size="word", value=bitarray("0111111010000010"))
         self.registers[2].set_word(value=bitarray("0000000000000010"))
-        self.cpu.execute_next()
-        self.assertEqual(self.registers[7].word().to01(), "0000000100000010")
+        self.exec()
+        self.assertEqual(self.registers[7].word().to01(), "0000000011111110")
 
 
 if __name__ == "__main__":

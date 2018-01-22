@@ -152,3 +152,11 @@ class Memory:
             return True
 
         return False
+
+    def operation_on_device(self, address: int) -> bool:
+        if address >= self._video.VRAM_start and address < self._video.VRAM_start + self._video.size \
+                or (address // 2) * 2 == self._video_register_mode_start.address \
+                or (address // 2) * 2 == self._video_register_offset.address:
+            return True
+
+        return False
