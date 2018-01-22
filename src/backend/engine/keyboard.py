@@ -25,8 +25,6 @@ class Keyboard:
         self._sp = stack_pointer
         self._buffer = deque()
         self._lock = QMutex()
-        self.add_alpha("h")
-        self.add_alpha("e")
 
     @property
     def interrupt_permitted(self) -> bool:
