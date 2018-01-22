@@ -75,12 +75,19 @@ class Routines:
         return Assembler.assemble(content.splitlines())
 
     @staticmethod
-    def keyboard_interrupt(keyboard_register_address: int, monitor_structure_start: int, draw_glyph_start: int) -> list:
+    def keyboard_interrupt(keyboard_register_address: int, monitor_structure_start: int, draw_glyph_start: int,
+                           init_start: int, glyph_height: int, num_glyphs_width: int, num_glyphs_height: int,
+                           video_register_offset_address: int) -> list:
         path = pathlib.Path(src.backend.utils.__path__[0])
         path = path.parent.parent.parent / "resource" / "assembler" / "keyboard_interrupt"
 
         with open(path) as f:
             content = f.read().format(keyboard_register_address=keyboard_register_address,
                                       monitor_structure_start=monitor_structure_start,
-                                      draw_glyph_start=draw_glyph_start)
+                                      draw_glyph_start=draw_glyph_start, init_start=init_start,
+                                      glyph_height=glyph_height, num_glyphs_width=num_glyphs_width,
+                                      num_glyphs_height=num_glyphs_height,
+                                      video_register_offset_address=video_register_offset_address,
+                                      num_glyphs_all=num_glyphs_height * num_glyphs_width)
+
         return Assembler.assemble(content.splitlines())

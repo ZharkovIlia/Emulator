@@ -1,14 +1,53 @@
-#integer constants: keyboard_register_address, monitor_structure_start, draw_glyph_start
+# R0, R1, R2 are caller saved
+# R3, R4, R5 are callee saved
 
-MOV #{monitor_structure_start:o}, R2
-MOV -(R2), R0
-MOV -(R2), R1
+#integer constants: keyboard_register_address, monitor_structure_start, draw_glyph_start
+#   init_start, glyph_height, num_glyphs_width, num_glyphs_height, num_glyphs_all, video_register_offset_address
+
+
+MOV #{monitor_structure_start:o}, R5
+MOV -(R5), R0
+MOV -(R5), R1
 MOVB @#{keyboard_register_address:o}, R2
 
-JSR R5, @#{draw_glyph_start:o}
+CMP R2, #032
+BHI 056
+SUB #02, R5
+MOV -(R5), R3
+CMP #0, R3
+BNE 01
+MOV R2, -(R5)
 
-MOV #{monitor_structure_start:o}, R2
-INC -(R2)
+# CMP #0, R3 glyph is not first
+CMP R0, #{num_glyphs_width:o}
+BNE 026
+MOV #{monitor_structure_start:o}, R5
+MOV #00, -(R5)
+INC -(R5)
+CMP (R5), #{num_glyphs_height:o}
+BNE 016
+MOV @#{video_register_offset_address:o}, R4
+ADD #{glyph_height:o}, R4
+BIC #0100000, R4
+MOV R4, @#{video_register_offset_address:o}
+DEC (R5)
+CMP -(R5), #{num_glyphs_all:o}
+BNE 02
+SUB #{num_glyphs_width:o}, (R5)
+
+# CMP R0, #{num_glyphs_width:o} can draw now
+MOV #{monitor_structure_start:o}, R5
+MOV -(R5), R0
+MOV -(R5), R1
+JSR R5, @#{draw_glyph_start:o}
+MOV #{monitor_structure_start:o}, R5
+INC -(R5)
+SUB #02, R5
+INC -(R5)
+INC -(R5)
+#BR ??????????????? # end
+
+# CMP R2, #032 not an alpha
 
 MOV #0100000, @#{keyboard_register_address:o}
 RTI

@@ -81,6 +81,10 @@ class Memory:
         return self._video_register_offset.address
 
     @property
+    def keyboard_register_address(self) -> int:
+        return self._keyboard_register.address
+
+    @property
     def keyboard_register(self):
         return self._keyboard_register
 

@@ -196,7 +196,7 @@ class Emulator:
                              video_register_mode_start_address=self._memory.video_register_mode_start_address,
                              video_register_offset_address=self._memory.video_register_offset_address,
                              video_mode=VideoMode.MODE_O.mode, video_start=MemoryPart.VRAM.start,
-                             keyboard_register_address=self._memory.keyboard_register.address,
+                             keyboard_register_address=self._memory.keyboard_register_address,
                              keyboard_interrupt_subroutine_address=keyboard_interrupt_start,
                              monitor_structure_start=self._sp.lower_bound)
 
@@ -204,10 +204,20 @@ class Emulator:
         if init_end > draw_glyph_start:
             raise EmulatorWrongConfiguration(what="init is too long")
 
+        assert self._memory.video.mode.width % self._glyphs["width"] == 0
+        print(self._glyphs["max_height"])
+        print(self._glyphs["min_height"])
+
         keyboard_interrupt = Routines.\
-            keyboard_interrupt(keyboard_register_address=self._memory.keyboard_register.address,
+            keyboard_interrupt(keyboard_register_address=self._memory.keyboard_register_address,
                                monitor_structure_start=self._sp.lower_bound,
-                               draw_glyph_start=draw_glyph_start)
+                               draw_glyph_start=draw_glyph_start, init_start=init_start,
+                               glyph_height=self._glyphs["min_height"],
+                               num_glyphs_width=self._memory.video.mode.width // self._glyphs["width"],
+                               num_glyphs_height=(self._memory.video.mode.height -
+                                                 (self._glyphs["max_height"] - self._glyphs["min_height"])) //
+                                                 self._glyphs["min_height"],
+                               video_register_offset_address=self._memory.video_register_offset_address)
 
         keyboard_interrupt_end = keyboard_interrupt_start + len(keyboard_interrupt) * 2
 
