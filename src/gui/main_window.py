@@ -66,6 +66,7 @@ class MainWindow(QWidget):
         self.viewer.setEnabled(False)
         self.registers.setEnabled(False)
         self.emulator.stopped = False
+        self.screen.screen.setFocus()
 
         self.emuThread = EmulatorThread(self.emulator)
         self.emuThread.finished.connect(self.pause)
@@ -75,6 +76,7 @@ class MainWindow(QWidget):
     def step(self):
         self.screen.cash.checkEnabled.setEnabled(False)
         self.screen.pipe.checkEnabled.setEnabled(False)
+        self.screen.screen.setFocus()
         self.emulator.step()
         self.viewer.get_current()
         self.registers.update()

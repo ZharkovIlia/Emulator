@@ -56,6 +56,9 @@ class BreakpointsView(QWidget):
                 self.setStyleSheet("background: white")
                 self.data.setStyleSheet("background: white")
 
+        def reset(self, emu: Emulator):
+            self.emu = emu
+
     def assign_line(self, one: BreakpointLine, another: BreakpointLine):
         one.address.setText(another.address.text())
         one.data.setText(another.data.text())
@@ -144,3 +147,9 @@ class BreakpointsView(QWidget):
             self.move_up()
         elif e.key() == Qt.Key_Down:
             self.move_down()
+
+    def reset(self, emu: Emulator):
+        self.emu = emu
+        for i in range(self.lines):
+            self.line_widgets[i].reset(self.emu)
+        self.fill(self.emu.current_pc, self.format_str)

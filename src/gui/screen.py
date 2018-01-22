@@ -123,6 +123,8 @@ class ScreenField(QLabel):
             self.emulator.keyboard.add_enter()
         elif e.key() == Qt.Key_Backspace:
             self.emulator.keyboard.add_backspace()
+        elif e.key() == Qt.Key_Space:
+            self.emulator.keyboard.add_space()
         elif e.text().isalpha() and e.text().islower():
             self.emulator.keyboard.add_alpha(e.text())
 

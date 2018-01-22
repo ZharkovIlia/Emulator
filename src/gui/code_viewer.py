@@ -35,8 +35,10 @@ class CodeViewer(QWidget):
         choose_address.addWidget(format_label)
         choose_address.addWidget(self.format_box)
         #choose_address.addWidget(self.go_to_pc)
-
-        self.breakpoint_table = BreakpointsView(self.emulator, 15, self.format_box.currentText())
+        self._numLinesInTable = 15
+        self.breakpoint_table = BreakpointsView(self.emulator,
+                                                self._numLinesInTable,
+                                                self.format_box.currentText())
         self.address_editor.editingFinished.connect(self.get_chosen_address)
         self.format_box.currentIndexChanged.connect(self.get_after_type_changed)
         self.go_to_pc.clicked.connect(self.get_current)
@@ -83,7 +85,4 @@ class CodeViewer(QWidget):
 
     def reset(self, emu: Emulator):
         self.emulator = emu
-        self.address_editor = QLineEdit(format(self.emulator.current_pc, 'o'))
-        self.breakpoint_table.deleteLater()
-        self.breakpoint_table = BreakpointsView(self.emulator, 10, self.format_box.currentText())
-        self.editor_layout.addWidget(self.breakpoint_table)
+        self.breakpoint_table.reset(self.emulator)
