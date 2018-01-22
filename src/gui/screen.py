@@ -119,9 +119,13 @@ class ScreenField(QLabel):
         self.setFixedSize(self.emulator.memory.video.mode.height,
                           self.emulator.memory.video.mode.width)
 
-
     def keyPressEvent(self, e):
-        print(e.text())
+        if e.key() == Qt.Key_Enter:
+            self.emulator.keyboard.add_enter()
+        elif e.key() == Qt.Key_Backspace:
+            self.emulator.keyboard.add_backspace()
+        elif e.text().isalpha() and e.text().islower():
+            self.emulator.keyboard.add_alpha(e.text())
 
     def focusInEvent(self, QFocusEvent):
         self.setFrameStyle(1)
@@ -159,9 +163,9 @@ class Screen(QWidget):
         buttons.addWidget(self.reset)
         buttons.setContentsMargins(10, 10, 10, 10)
 
-        l = QHBoxLayout()
-        l.addWidget(self.screen)
-        l.setContentsMargins(10, 10, 10, 10)
+        sl = QHBoxLayout()
+        sl.addWidget(self.screen)
+        sl.setContentsMargins(10, 10, 10, 10)
 
 #        self.screen.setAlignment(Qt.AlignCenter)
         self.cash = CashBox(self.emulator)
@@ -173,7 +177,7 @@ class Screen(QWidget):
 
         layout = QGridLayout()
         #layout.addWidget(self.screen, 1, 0, 2, 2)
-        layout.addLayout(l, 0, 0, 2, 2)
+        layout.addLayout(sl, 0, 0, 2, 2)
         layout.addLayout(buttons, 3, 0, 1, 2)
         layout.addWidget(self.cash, 4, 0)
         layout.addWidget(self.pipe, 4, 1)

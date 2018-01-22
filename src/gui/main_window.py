@@ -30,8 +30,8 @@ class MainWindow(QWidget):
         self.viewer = CodeViewer(self.emulator)
         self.registers = RegisterWindow(self.emulator)
         self.screen = Screen(self.emulator)
-        #self.timer = QTimer()
-        #self.timer.timeout.connect(self.load)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.load)
 
         right_part = QVBoxLayout()
         right_part.addWidget(self.registers)
@@ -56,7 +56,7 @@ class MainWindow(QWidget):
     def start(self):
         self.screen.cash.checkEnabled.setEnabled(False)
         self.screen.pipe.checkEnabled.setEnabled(False)
-        #self.timer.start(100)
+        self.timer.start(100)
         self.screen.start.setEnabled(False)
         self.screen.step.setEnabled(False)
         self.screen.reset.setEnabled(False)
@@ -79,7 +79,7 @@ class MainWindow(QWidget):
         self.screen.cash.get_stat()
 
     def pause(self):
-        #self.timer.stop()
+        self.timer.stop()
         self.screen.start.setEnabled(True)
         self.screen.step.setEnabled(True)
         self.screen.reset.setEnabled(True)
@@ -95,7 +95,7 @@ class MainWindow(QWidget):
         self.emulator.stopped = True
 
     def load(self):
-        #self.emulator.memory.video.show()
+        self.emulator.memory.video.show()
         self.screen.pipe.get_stat()
         self.screen.cash.get_stat()
 
