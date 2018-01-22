@@ -136,7 +136,7 @@ class InstructionFetcher(PipeComponent):
                     self._opnum += 1
                     self._next_instruction = None
 
-                    success = self._registers.inc_fetch(regnum=self.PC, value=2)
+                    success, _ = self._registers.inc_fetch(regnum=self.PC, value=2)
                     assert success
 
             else:
@@ -152,7 +152,7 @@ class InstructionFetcher(PipeComponent):
                 elif success and self._opnum == 0:
                     self._state = PipeComponentState.FINISHED
                     self._opnum += 1
-                    success = self._registers.inc_fetch(regnum=self.PC, value=2)
+                    success, _ = self._registers.inc_fetch(regnum=self.PC, value=2)
                     assert success
 
                 else:
@@ -171,7 +171,7 @@ class InstructionFetcher(PipeComponent):
                 self._state = PipeComponentState.FINISHED
                 self._opnum += 1
 
-                success = self._registers.inc_fetch(regnum=self.PC, value=2)
+                success, _ = self._registers.inc_fetch(regnum=self.PC, value=2)
                 assert success
 
         if self._opnum == len(self._commandsQueue[0]) and self._state != PipeComponentState.FINISHED:
@@ -341,14 +341,14 @@ class OperandsFetcher(PipeComponent):
             elif optype == Operation.INCREMENT_REGISTER:
                 reg = op["register"]
                 assert reg != 7
-                success = self._registers.inc_fetch(regnum=reg, value=op["value"])
+                success, _ = self._registers.inc_fetch(regnum=reg, value=op["value"])
                 if success:
                     self._opnum += 1
 
             elif optype == Operation.DECREMENT_REGISTER:
                 reg = op["register"]
                 assert reg != 7
-                success = self._registers.dec_fetch(regnum=reg, value=op["value"])
+                success, _ = self._registers.dec_fetch(regnum=reg, value=op["value"])
                 if success:
                     self._opnum += 1
 

@@ -11,7 +11,8 @@ from src.backend.model.registers import KeyboardRegister, StackPointer, ProgramC
 class Keyboard:
     INTERRUPT_VECTOR = {"PC": 0, "PS": 2}
     ALPHABET = "abcdefghijklmnopqrstuvwxyz"
-    ENTER = len(ALPHABET)
+    SPACE = len(ALPHABET)
+    ENTER = SPACE + 1
     BACKSPACE = ENTER + 1
 
     def __init__(self, register: KeyboardRegister, pipe: Pipe, memory: Memory, program_status: ProgramStatus,
@@ -24,6 +25,8 @@ class Keyboard:
         self._sp = stack_pointer
         self._buffer = deque()
         self._lock = QMutex()
+        self.add_alpha("h")
+        self.add_alpha("e")
 
     @property
     def interrupt_permitted(self) -> bool:
@@ -32,6 +35,7 @@ class Keyboard:
     def interrupt(self) -> bool:
         self._lock.lock()
         if not self._register.interrupt_permitted or len(self._buffer) == 0:
+            self._lock.unlock()
             return False
 
         self._register.interrupt_permitted = False
@@ -69,4 +73,9 @@ class Keyboard:
     def add_backspace(self):
         self._lock.lock()
         self._buffer.append(self.BACKSPACE)
+        self._lock.unlock()
+
+    def add_space(self):
+        self._lock.lock()
+        self._buffer.append(self.SPACE)
         self._lock.unlock()

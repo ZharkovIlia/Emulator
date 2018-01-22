@@ -1,5 +1,5 @@
 #integer constants: VRAM_start, video_register_mode_start_address, video_register_offset_address,
-#                       video_mode, video_start
+#   keyboard_register_address, video_mode, video_start, keyboard_interrupt_subroutine_address, monitor_structure_start
 
 MOV #{VRAM_start:o}, R6
 MOV #{video_start:o}, R0
@@ -12,4 +12,15 @@ ASL R1
 SOB R2, 2
 BIS R1, R0
 MOV R0, @#{video_register_mode_start_address:o}
-MOV #0, @#{video_register_offset_address:o}
+MOV #0100000, @#{video_register_offset_address:o}
+
+# initialization of monitor structure
+MOV #{monitor_structure_start:o}, R0
+MOV #0, -(R0)
+MOV #0, -(R0)
+# end if initialization
+
+MOV #{keyboard_interrupt_subroutine_address:o}, @#0
+MOV #0, @#02
+
+MOV #0100000, @#{keyboard_register_address:o}

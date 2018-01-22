@@ -6,7 +6,7 @@ from src.backend.model.commands import Commands
 from src.backend.model.video import VideoMode
 from src.backend.utils.assembler import Assembler
 from src.backend.utils.exceptions import EmulatorOddBreakpoint, EmulatorWrongAddress, \
-    UnknownCommand
+    UnknownCommand, EmulatorWrongConfiguration
 from src.backend.utils.disasm_instruction import DisasmInstruction, DisasmState
 from src.backend.utils.romfiller import ROMFiller
 
@@ -19,6 +19,7 @@ from src.backend.utils.routines import Routines
 
 class Emulator:
     SIZE_FONT_16_WIDTH = 26
+    MAX_INIT_LENGTH = 100
 
     def __init__(self, video_on_show=None):
         self._memory = Memory()
@@ -49,6 +50,7 @@ class Emulator:
         self._keyboard = Keyboard(register=self._memory.keyboard_register, pipe=self._pipe, memory=self._memory,
                                   program_status=self._program_status, program_counter=self._pc, stack_pointer=self._sp)
         self.stopped = False
+        self._writing_glyph = False
 
     @property
     def keyboard(self):
@@ -67,9 +69,17 @@ class Emulator:
         return self._dcash
 
     def step(self):
-        while not self._pipe.cycle():
-            pass
-        #self._memory.video.show()
+        while True:
+            if self._keyboard.interrupt_permitted and self._writing_glyph:
+                self._writing_glyph = False
+                self._memory.video.show()
+
+            if self._keyboard.interrupt():
+                self._writing_glyph = True
+                return
+
+            if self._pipe.cycle():
+                return
 
     def run(self):
         while True:
@@ -77,8 +87,6 @@ class Emulator:
             if self.current_pc in self._breakpoints or self.stopped:
                 break
 
-        print(self._pipe.cycles)
-        print(self._pipe.instructions)
         self._memory.video.show()
 
     def toggle_breakpoint(self, address: int):
@@ -171,40 +179,65 @@ class Emulator:
         for i, v in enumerate(self._glyphs["data"]):
             self._memory.store(address=self._glyphs_start + i, size="byte", value=v)
 
-        init = Routines.init(VRAM_start=MemoryPart.VRAM.start,
-                             video_register_mode_start_address=self._memory.video_register_mode_start_address,
-                             video_register_offset_address=self._memory.video_register_offset_address,
-                             video_mode=VideoMode.MODE_O.mode, video_start=MemoryPart.VRAM.start)
         init_start = MemoryPart.ROM.start
-        init_end = init_start + len(init) * 2 + 4
-        for i, v in enumerate(init):
-            self._memory.store(address=init_start + i*2, size="word", value=v)
-
+        draw_glyph_start = init_start + self.MAX_INIT_LENGTH
         draw_glyph = Routines.draw_glyph_mode_0(glyphs_start=self._glyphs_start, glyph_width=self._glyphs["width"],
-                                                glyph_height=self._glyphs["max_height"],
+                                                glyph_max_height=self._glyphs["max_height"],
+                                                glyph_height=self._glyphs["min_height"],
                                                 glyph_bitmap_size=self._glyphs["bitmap_size"],
                                                 monitor_width=self._memory.video.mode.width,
                                                 video_start=MemoryPart.VRAM.start,
                                                 monitor_depth=self._memory.video.mode.depth)
-        draw_glyph_start = init_end
+
         draw_glyph_end = draw_glyph_start + len(draw_glyph) * 2
+        keyboard_interrupt_start = draw_glyph_end
+
+        init = Routines.init(VRAM_start=MemoryPart.VRAM.start,
+                             video_register_mode_start_address=self._memory.video_register_mode_start_address,
+                             video_register_offset_address=self._memory.video_register_offset_address,
+                             video_mode=VideoMode.MODE_O.mode, video_start=MemoryPart.VRAM.start,
+                             keyboard_register_address=self._memory.keyboard_register.address,
+                             keyboard_interrupt_subroutine_address=keyboard_interrupt_start,
+                             monitor_structure_start=self._sp.lower_bound)
+
+        init_end = init_start + len(init) * 2 + 4
+        if init_end > draw_glyph_start:
+            raise EmulatorWrongConfiguration(what="init is too long")
+
+        keyboard_interrupt = Routines.\
+            keyboard_interrupt(keyboard_register_address=self._memory.keyboard_register.address,
+                               monitor_structure_start=self._sp.lower_bound,
+                               draw_glyph_start=draw_glyph_start)
+
+        keyboard_interrupt_end = keyboard_interrupt_start + len(keyboard_interrupt) * 2
+
+        mainloop = Routines.mainloop_mode_0()
+        mainloop_start = keyboard_interrupt_end
+        mainloop_end = mainloop_start + len(mainloop) * 2
+
+        jump_to_mainloop = Assembler.assemble(["JMP @#{:o}".format(mainloop_start)])
+
+        if mainloop_end > self._glyphs_start:
+            raise EmulatorWrongConfiguration(what="programs don't fit to ROM!")
+
+        for i, v in enumerate(init):
+            self._memory.store(address=init_start + i*2, size="word", value=v)
+
+        self._memory.store(address=init_end - 4, size="word", value=jump_to_mainloop[0])
+        self._memory.store(address=init_end - 2, size="word", value=jump_to_mainloop[1])
+
         for i, v in enumerate(draw_glyph):
             self._memory.store(address=draw_glyph_start + i*2, size="word", value=v)
 
-        mainloop = Routines.mainloop_mode_0(draw_glyph_start=draw_glyph_start, glyph_width=self._glyphs["width"])
-        mainloop_start = draw_glyph_end
-        mainloop_end = mainloop_start + len(mainloop) * 2
+        for i, v in enumerate(keyboard_interrupt):
+            self._memory.store(address=keyboard_interrupt_start + i*2, size="word", value=v)
+
         for i, v in enumerate(mainloop):
             self._memory.store(address=mainloop_start + i*2, size="word", value=v)
-
-        jump_to_mainloop = Assembler.assemble(["JMP @#{:o}".format(mainloop_start)])
-        self._memory.store(address=init_end - 4, size="word", value=jump_to_mainloop[0])
-        self._memory.store(address=init_end - 2, size="word", value=jump_to_mainloop[1])
 
         self._disasm_from_to(init_start, mainloop_end)
 
     def _disasm_from_to(self, from_: int, to: int):
-        tmp_ps = ProgramStatus()
         stored = True
         cur_next_instruction, num_next_instructions = 0, 0
         tmp_addr: int = None
@@ -226,33 +259,33 @@ class Emulator:
 
             try:
                 com = Commands.get_command_by_code(code=self._memory.load(size="word", address=addr),
-                                                   program_status=tmp_ps)
+                                                   program_status=self._program_status)
                 self._commands[addr] = com
 
             except UnknownCommand:
                 self._instructions[addr].set_state(state=DisasmState.NOT_AN_INSTRUCTION)
                 continue
 
-            tmp_repr = com.string_representation + " "
+            tmp_repr = com.string_representation
 
             if com.has_src_operand and com.has_dest_operand:
-                tmp_repr = tmp_repr + com.src_operand.string_representation + ", " + \
+                tmp_repr = tmp_repr + " " + com.src_operand.string_representation + ", " + \
                            com.dest_operand.string_representation
 
             elif com.has_dest_operand and com.has_offset:
-                tmp_repr = tmp_repr + com.dest_operand.string_representation + ", " + "{:o}".format(com.offset)
+                tmp_repr = tmp_repr + " " + com.dest_operand.string_representation + ", " + "{:o}".format(com.offset)
 
             elif com.has_src_operand:
-                tmp_repr = tmp_repr + com.src_operand.string_representation
+                tmp_repr = tmp_repr + " " + com.src_operand.string_representation
 
             elif com.has_dest_operand:
-                tmp_repr = tmp_repr + com.dest_operand.string_representation
+                tmp_repr = tmp_repr + " " + com.dest_operand.string_representation
 
             elif com.has_offset:
-                tmp_repr = tmp_repr + "{:o}".format(com.offset)
+                tmp_repr = tmp_repr + " {:o}".format(com.offset)
 
             elif com.has_number:
-                tmp_repr = tmp_repr + "{:o}".format(com.number)
+                tmp_repr = tmp_repr + " {:o}".format(com.number)
 
             if com.num_next_instructions != 0:
                 cur_next_instruction, num_next_instructions = 0, com.num_next_instructions

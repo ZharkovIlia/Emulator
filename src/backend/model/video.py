@@ -82,7 +82,7 @@ class VideoMemory:
         image.setColorTable(self._image.colorTable())
         diff = offset - self._offset
         if diff < 0:
-            diff = Register.BOUND_PROPERTIES[("word", False)] + diff + 1
+            diff = reg_offset.MAX_OFFSET + diff + 1
         self._offset = offset
         for y in range(self._mode.height):
             from_y = y + diff
