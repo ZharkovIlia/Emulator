@@ -124,6 +124,14 @@ class StackPointer(OnlyEvenValueRegister):
         self._upper_bound = 65534
         self._lower_bound = 0
 
+    @property
+    def upper_bound(self):
+        return self._upper_bound
+
+    @property
+    def lower_bound(self):
+        return self._lower_bound
+
     class error_when_overflow:
         def __init__(self):
             pass
@@ -240,6 +248,8 @@ class VideoMemoryRegisterModeStart(MemoryRegister):
 
 
 class VideoMemoryRegisterOffset(MemoryRegister):
+    MAX_OFFSET = 2 ** 15 - 1
+
     def __init__(self, address: int, offset: int):
         super(VideoMemoryRegisterOffset, self).__init__(address)
         self._data = bitarray("{:016b}".format(offset), endian='big')

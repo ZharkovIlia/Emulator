@@ -29,17 +29,11 @@ class PoolRegisters:
 
         def __call__(self, call):
             def wrapper(regnum: int, **kwargs):
-                result = call(regnum=regnum, **kwargs)
                 if self._pool._blocked[regnum]:
-                    if result is None:
-                        return False
-                    else:
-                        return False, None
+                    return False, None
                 else:
-                    if result is None:
-                        return True
-                    else:
-                        return True, result
+                    result = call(regnum=regnum, **kwargs)
+                    return True, result
 
             return wrapper
 

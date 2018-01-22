@@ -1,31 +1,4 @@
 # R0, R1, R2 are caller saved
 # R3, R4, R5 are callee saved
 
-# integer constants: draw_glyph_start
-
-
-MOV #0, R0
-MOV #0, R1
-MOV #07, R2
-JSR R5, @#{draw_glyph_start:o}
-
-MOV #01, R0
-MOV #0, R1
-MOV #04, R2
-JSR R5, @#{draw_glyph_start:o}
-
-MOV #02, R0
-MOV #0, R1
-MOV #013, R2
-JSR R5, @#{draw_glyph_start:o}
-
-MOV #03, R0
-MOV #0, R1
-MOV #013, R2
-JSR R5, @#{draw_glyph_start:o}
-
-MOV #04, R0
-MOV #0, R1
-MOV #016, R2
-JSR R5, @#{draw_glyph_start:o}
 BR -1
