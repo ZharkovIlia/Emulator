@@ -75,6 +75,10 @@ class CashMemory:
         self._pool_addr_blocked = set()
 
     @property
+    def memory(self):
+        return self._memory
+
+    @property
     def enabled(self):
         return self._enabled
 

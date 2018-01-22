@@ -555,7 +555,8 @@ class MARKCommand(JumpCommand):
                                  "callback": self._tmp_sp.set_word})
 
         self._operations.append({"operation": Operation.EXECUTE,
-                                 "callback": lambda: self._tmp_sp.inc(value=self._number * 2)})
+                                 "callback": lambda: self._tmp_sp.inc(value=self._number * 2),
+                                 "cycles": 1})
 
         self._operations.append({"operation": Operation.FETCH_REGISTER,
                                  "register": 5,
@@ -568,7 +569,8 @@ class MARKCommand(JumpCommand):
                                  "callback": self._inner_register.set_word})
 
         self._operations.append({"operation": Operation.EXECUTE,
-                                 "callback": lambda: self._tmp_sp.inc(value=2)})
+                                 "callback": lambda: self._tmp_sp.inc(value=2),
+                                 "cycles": 1})
 
         self._operations.append({"operation": Operation.STORE_REGISTER,
                                  "register": 6,

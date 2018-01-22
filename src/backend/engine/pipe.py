@@ -5,7 +5,7 @@ from bitarray import bitarray
 
 from src.backend.engine.cash import CashMemory
 from src.backend.engine.pool_registers import PoolRegisters
-from src.backend.model.commands import AbstractCommand, Operation, JumpCommand, BranchCommand
+from src.backend.model.commands import AbstractCommand, Operation, JumpCommand, BranchCommand, Commands
 from src.backend.model.programstatus import ProgramStatus
 
 
@@ -585,7 +585,7 @@ class Pipe:
     PC = 7
 
     def __init__(self, dmem: CashMemory, imem: CashMemory, pool_registers: PoolRegisters,
-                 ps: ProgramStatus, commands: dict, enabled=True):
+                 ps: ProgramStatus, commands: dict=None, enabled=True):
         instr_fetcher = InstructionFetcher(imem, pool_registers)
         decoder = Decoder()
         instr_fetcher.set_decoder(decoder)
@@ -707,7 +707,12 @@ class Pipe:
 
     def _add_command(self):
         self._instructions += 1
-        command = self._commands[self._pc.get(size="word", signed=False)]
+        if self._commands is None:
+            instr = self._imem.memory.load(address=self._pc.get(size="word", signed=False), size="word")
+            command = Commands.get_command_by_code(code=instr, program_status=self._program_status)
+        else:
+            command = self._commands[self._pc.get(size="word", signed=False)]
+
         if isinstance(command, JumpCommand) or isinstance(command, BranchCommand):
             self._branch = True
 

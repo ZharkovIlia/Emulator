@@ -55,7 +55,6 @@ class CashTest(unittest.TestCase):
         self.assertEqual(self.cash.cycle(), True)
         self.cash.store(address=0b0000100000001010, size="byte", value=bitarray("01010101"))
 
-
         self.assertEqual(self.cash.load(address=0b0000010000001010, size="byte"), (True, bitarray("01010101")))
         self.assertEqual(self.cash.load(address=0b0000100000001010, size="byte"), (True, bitarray("01010101")))
         self.assertEqual(self.cash.load(address=0b0000001000001010, size="byte"), (False, None))
@@ -77,17 +76,17 @@ class CashTest(unittest.TestCase):
         self.assertEqual(self.cash.misses, 1)
 
     def test_block(self):
-        self.assertEqual(self.cash.block(address=0b0000000000001010, block=True), False)
-        for _ in range(29):
-            self.assertEqual(self.cash.cycle(), False)
-        self.assertEqual(self.cash.cycle(), True)
         self.assertEqual(self.cash.block(address=0b0000000000001010, block=True), True)
+        self.assertEqual(self.cash.store(address=0b0000000000001010, size="byte",
+                                         value=bitarray("01010101")), False)
+        for _ in range(30):
+            self.cash.cycle()
 
         self.assertEqual(self.cash.store(address=0b0000000000001010, size="byte",
                                          value=bitarray("01010101")), True)
 
         self.assertEqual(self.cash.load(address=0b0000000000001010, size="byte"), (False, None))
-        self.cash.block(address=0b0000000000001010, block=False)
+        self.assertEqual(self.cash.block(address=0b0000000000001010, block=False), True)
         self.assertEqual(self.cash.load(address=0b0000000000001010, size="byte"), (True, bitarray("01010101")))
 
     def test_load_store_device(self):
