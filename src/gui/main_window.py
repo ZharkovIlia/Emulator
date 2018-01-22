@@ -34,9 +34,10 @@ class MainWindow(QWidget):
         self.timer = QTimer()
         self.timer.timeout.connect(self.load)
 
-        right_part = QVBoxLayout()
-        right_part.addWidget(self.registers)
-        right_part.addWidget(self.viewer)
+        right_part = QGridLayout()
+        right_part.addWidget(self.registers, 0, 0, 1, 1)
+        right_part.addWidget(self.viewer, 1, 0, 2, 1)
+        right_part.setAlignment(Qt.AlignTop)
 
         #layout = QHBoxLayout()
         #layout.addWidget(self.screen)
@@ -45,7 +46,7 @@ class MainWindow(QWidget):
         layout = QGridLayout()
         layout.addWidget(self.screen, 0, 0)
         layout.addLayout(right_part, 0, 1)
-        layout.setColumnStretch(1, 3)
+        layout.setColumnStretch(1, 2)
 
         self.screen.start.clicked.connect(self.start)
         self.screen.step.clicked.connect(self.step)
@@ -97,7 +98,7 @@ class MainWindow(QWidget):
         self.emulator.stopped = True
 
     def load(self):
-        self.emulator.memory.video.show()
+        #self.emulator.memory.video.show()
         self.screen.pipe.get_stat()
         self.screen.cash.get_stat()
 
@@ -111,7 +112,6 @@ class MainWindow(QWidget):
 
         self.viewer.get_current()
         self.registers.update()
-
 
 app = QApplication(sys.argv)
 window = MainWindow()

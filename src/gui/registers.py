@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QLineEdit
+from PyQt5.QtWidgets import QWidget, QLabel, QHBoxLayout, QVBoxLayout, QLineEdit, QSizePolicy
 from PyQt5.QtCore import Qt
 
 from src.backend.engine.emulator import Emulator
@@ -15,6 +15,7 @@ class RegisterWindow(QWidget):
             layout.setContentsMargins(0, 0, 0, 0)
             layout.addWidget(self.name)
             layout.addWidget(self.value)
+            layout.setAlignment(Qt.AlignLeft)
             self.setLayout(layout)
 
         def set_value(self, value: int):
@@ -30,6 +31,7 @@ class RegisterWindow(QWidget):
             layout.setContentsMargins(0, 0, 0, 0)
             layout.addWidget(self.name)
             layout.addWidget(self.value)
+            layout.setAlignment(Qt.AlignLeft)
             self.setLayout(layout)
 
         def set_value(self, value: bool):
@@ -46,6 +48,7 @@ class RegisterWindow(QWidget):
         register_box = QVBoxLayout()
         register_box.setContentsMargins(0, 0, 0, 0)
         register_box.setSpacing(0)
+        register_box.setAlignment(Qt.AlignTop)
         for i in range(self.num_of_registers):
             value = self.emulator.registers[i].get("word", False)
             self.register_lines.append(self.RegisterLine(i, value))

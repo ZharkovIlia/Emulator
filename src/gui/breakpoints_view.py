@@ -85,11 +85,13 @@ class BreakpointsView(QWidget):
         wlay.setObjectName("kyky")
         wlay.setStyleSheet("#kyky{border: 7px solid white}")
 
-        up = QPushButton("up")
+        up = QToolButton()
+        up.setArrowType(Qt.UpArrow)
         up.setAutoRepeat(True)
         up.clicked.connect(self.move_up)
 
-        down = QPushButton("down")
+        down = QToolButton()
+        down.setArrowType(Qt.DownArrow)
         down.setAutoRepeat(True)
         down.clicked.connect(self.move_down)
 
@@ -102,6 +104,8 @@ class BreakpointsView(QWidget):
         wrap = QHBoxLayout()
         wrap.addWidget(wlay)
         wrap.addLayout(buttons)
+
+        self.setFocusPolicy(Qt.ClickFocus)
 
         self.setLayout(wrap)
         self.show()
@@ -134,3 +138,9 @@ class BreakpointsView(QWidget):
             line.point.setEnabled(True)
 
         line.set_checked(breakpoint)
+
+    def keyPressEvent(self, e):
+        if e.key() == Qt.Key_Up:
+            self.move_up()
+        elif e.key() == Qt.Key_Down:
+            self.move_down()
