@@ -155,27 +155,12 @@ class CPUTest(unittest.TestCase):
         self.cpu.execute_next()
         self.assertEqual(self.registers[2].word().to01(), "0000000011000000")
 
-
-        # self.memory.store(address=256, size="word", value=bitarray("1000101000010111"))
-        # self.memory.store(address=258, size="word", value=bitarray("0000010101111111"))
-        # self.cpu.execute_next()
-        # self.assertEqual(self.registers[7].get(size="word", signed=False), 260)
-        # self.assertEqual(self.memory.load(address=258, size="word").to01(), "0000010100000000")
-
     def test_mov_byte_mode_2_reg_pc(self):
         self.memory.store(address=256, size="word", value=bitarray("1001010111000010"))
         self.memory.store(address=258, size="word", value=bitarray("0000000011000000"))
         self.registers[2].set_word(value=bitarray("1000010101111011"))
         self.cpu.execute_next()
         self.assertEqual(self.registers[2].word().to01(), "1111111111000000")
-
-
-
-        #self.memory.store(address=256, size="word", value=bitarray("0000101000010111"))
-        #self.memory.store(address=258, size="word", value=bitarray("0000010101111111"))
-        #self.cpu.execute_next()
-        #self.assertEqual(self.registers[7].get(size="word", signed=False), 260)
-        #self.assertEqual(self.memory.load(address=258, size="word").to01(), "0000000000000000")
 
     def test_mov_word_mode_3_reg_pc(self):
         self.memory.store(address=256, size="word", value=bitarray("0001011111000010"))

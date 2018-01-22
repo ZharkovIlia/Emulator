@@ -45,7 +45,7 @@ class PipeComponent:
         self._worked = False
         self._state: PipeComponentState = PipeComponentState.WAIT_NEXT_COMMAND
         self._address = 0
-        self._rwb: str = None
+        self._rw: str = None
         self._commandsQueue = deque()
         self._opnum = 0
 
@@ -54,8 +54,8 @@ class PipeComponent:
         return self._address
 
     @property
-    def rwb(self):
-        return self._rwb
+    def rw(self):
+        return self._rw
 
     @property
     def worked(self):
@@ -155,7 +155,7 @@ class InstructionFetcher(PipeComponent):
 
                 else:
                     self._state = PipeComponentState.WAIT_INSTRUCTION
-                    self._rwb = 'r'
+                    self._rw = 'r'
 
         elif self._state == PipeComponentState.WAIT_INSTRUCTION:
             success, instr = self._imem.load(address=self._address,
@@ -334,7 +334,7 @@ class OperandsFetcher(PipeComponent):
                         self._opnum += 1
                 else:
                     self._state = PipeComponentState.WAIT_DATA
-                    self._rwb = 'r'
+                    self._rw = 'r'
 
             elif optype == Operation.INCREMENT_REGISTER:
                 reg = op["register"]
@@ -402,27 +402,13 @@ class OperandsFetcher(PipeComponent):
             self._block_mem()
 
     def _block_mem(self):
-        if not self._dmem.enabled:
-            self._state = PipeComponentState.FINISHED
-            return
-
         while self._num_block < len(self._commandsQueue[0]["blmem"]):
             if self._state == PipeComponentState.IN_PROGRESS:
-                self._address = self._commandsQueue[0]["blmem"][self._num_block]()
-                success = self._dmem.block(self._address, True)
-                if not success:
-                    self._state = PipeComponentState.WAIT_DATA
-                    self._rwb = 'b'
-                    break
-                else:
-                    self._num_block += 1
-
-            elif self._state == PipeComponentState.WAIT_DATA:
-                success = self._dmem.block(self._address, True)
+                address = self._commandsQueue[0]["blmem"][self._num_block]()
+                success = self._dmem.block(address, True)
                 if not success:
                     break
                 else:
-                    self._state = PipeComponentState.IN_PROGRESS
                     self._num_block += 1
 
         if self._num_block < len(self._commandsQueue[0]["blmem"]):
@@ -548,7 +534,7 @@ class DataWriter(PipeComponent):
                         self._opnum += 1
                 else:
                     self._state = PipeComponentState.WAIT_DATA
-                    self._rwb = 'w'
+                    self._rw = 'w'
 
             elif optype == Operation.BRANCH_IF:
                 if op["if"]():
@@ -585,16 +571,11 @@ class DataWriter(PipeComponent):
             assert success
 
     def _unblock_mem(self):
-        if not self._dmem.enabled:
-            self._state = PipeComponentState.FINISHED
-            return
-
         for op in self._commandsQueue[0]:
             if op["operation"] != Operation.STORE_ADDRESS:
                 continue
 
-            self._address = op["address"]()
-            success = self._dmem.block(self._address, False)
+            success = self._dmem.block(op["address"](), False)
             assert success
 
         self._state = PipeComponentState.FINISHED
@@ -624,7 +605,6 @@ class Pipe:
         self._branch = False
         self.clear_statistics()
         self._add_command()
-        #self._instructions += 1
 
     @property
     def enabled(self):
@@ -651,8 +631,6 @@ class Pipe:
             self._add_command()
 
         new_command = self._progress(fetch_new_instruction=True) or new_command
-        #if new_command:
-        #    self._instructions += 1
 
         return new_command
 
@@ -684,11 +662,11 @@ class Pipe:
 
         for component in self._components:
             if component.state == PipeComponentState.WAIT_DATA and dmem_ready \
-                    and component.address == self._dmem.address and component.rwb == self._dmem.rwb:
+                    and component.address == self._dmem.address and component.rw == self._dmem.rw:
                 worked = component.cycle() or worked
 
             if component.state == PipeComponentState.WAIT_INSTRUCTION and imem_ready \
-                    and component.address == self._imem.address and component.rwb == self._imem.rwb:
+                    and component.address == self._imem.address and component.rw == self._imem.rw:
                 worked = component.cycle() or worked
 
         for pos in range(len(self._components) - 1, -1, -1):

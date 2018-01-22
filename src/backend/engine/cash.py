@@ -12,7 +12,6 @@ class CashLine:
         self.string = string
         self.lru = lru
         self.modified = False
-        self.blocked = False
         self.missed = False
 
 
@@ -67,11 +66,13 @@ class CashMemory:
         self.strings = []
         self._busy = False
         self._address = -1
-        self._rwb: str = None
+        self._rw: str = None
         self.clear_statistics()
         for string in range(0, self.NUM_STRINGS):
             self.strings.append([CashLine(string, self.ASSOCIATION_DEGREE - i - 1)
                                  for i in range(0, self.ASSOCIATION_DEGREE)])
+
+        self._pool_addr_blocked = set()
 
     @property
     def enabled(self):
@@ -94,8 +95,8 @@ class CashMemory:
         return self._address
 
     @property
-    def rwb(self):
-        return self._rwb
+    def rw(self):
+        return self._rw
 
     def clear_statistics(self):
         self._hits = 0
@@ -105,6 +106,9 @@ class CashMemory:
         self._address = -1
 
     def load(self, address: int, size: str) -> (bool, bitarray):
+        if (address // 2) * 2 in self._pool_addr_blocked:
+            return False, None
+
         if not self._busy and self._address != -1 and self._address != address:
             return False, None
 
@@ -113,8 +117,6 @@ class CashMemory:
 
         (string, tag) = self._get_string_tag(address)
         line = self._find(string, tag)
-        if line is not None and line.blocked:
-            return False, None
 
         if line is not None:
             self._change_lru(line)
@@ -176,33 +178,14 @@ class CashMemory:
         return not self._busy
 
     def block(self, address: int, block: bool) -> bool:
-        if not self._busy and self._address != -1 and self._address != address:
-            return False
-
-        if not self._enabled or self._memory.operation_on_device(address):
-            #raise CashWrongBlockException()
-            return True
-
-        (string, tag) = self._get_string_tag(address)
-        line = self._find(string, tag)
-
-        if line is None and not self._busy:
-            self._eject(string, tag, address, 'b')
-            return False
-
-        if line is None:
-            return False
-
-        if line.blocked != block:
-            line.blocked = block
+        if ((address // 2) * 2 in self._pool_addr_blocked) != block:
             if block:
-                line.lru = self.LRU_NOT_EJECT
-                self.strings[string].sort(key=lambda ln: ln.lru, reverse=True)
+                self._pool_addr_blocked.add((address // 2) * 2)
             else:
-                self._change_lru(line)
+                self._pool_addr_blocked.remove((address // 2) * 2)
             return True
 
-        if not line.blocked and not block:
+        if (address // 2) * 2 not in self._pool_addr_blocked and not block:
             raise CashUnblockException()
 
         return False
@@ -211,13 +194,13 @@ class CashMemory:
         if self._busy:
             return False, None
 
-        if self._address == address and self._rwb == 'r':
-            self._rwb = None
+        if self._address == address and self._rw == 'r':
+            self._rw = None
             self._address = -1
             return True, self._memory.load(address, size)
 
         if self._address == -1:
-            self._rwb = 'r'
+            self._rw = 'r'
             self._address = address
             self._bus_request = BusRequest(2)
             self._busy = True
@@ -226,16 +209,16 @@ class CashMemory:
 
     def _store_if_disabled(self, address: int, size: str, value: bitarray) -> bool:
         if self._busy:
-            return False, None
+            return False
 
-        if self._address == address and self._rwb == 'w':
-            self._rwb = None
+        if self._address == address and self._rw == 'w':
+            self._rw = None
             self._address = -1
             self._memory.store(address, size, value)
             return True
 
         if self._address == -1:
-            self._rwb = 'w'
+            self._rw = 'w'
             self._address = address
             self._bus_request = BusRequest(2)
             self._busy = True
@@ -256,7 +239,7 @@ class CashMemory:
         tag = int(bitarr[0: self.BITS_FOR_TAG].to01(), 2)
         return string, tag
 
-    def _eject(self, string: int, tag: int, address: int, rwb: str):
+    def _eject(self, string: int, tag: int, address: int, rw: str):
         assert not self._busy
 
         line_for_ejection: CashLine = self.strings[string][0]
@@ -265,7 +248,7 @@ class CashMemory:
             return
 
         self._address = address
-        self._rwb = rwb
+        self._rw = rw
 
         line_for_ejection.lru = self.LRU_NOT_EJECT
         self.strings[string].sort(key=lambda ln: ln.lru, reverse=True)

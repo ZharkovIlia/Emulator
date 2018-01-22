@@ -39,8 +39,8 @@ class Emulator:
         self._commands = {}
 
         self._fill_ROM()
-        self._icash = CashMemory(self._memory)
-        self._dcash = CashMemory(self._memory)
+        self._icash = CashMemory(self._memory, False)
+        self._dcash = CashMemory(self._memory, False)
         self._pool_registers = PoolRegisters(self._registers)
         self._pipe = Pipe(dmem=self._dcash, imem=self._icash, pool_registers=self._pool_registers,
                           ps=self._program_status, commands=self._commands, enabled=True)
