@@ -201,3 +201,57 @@ class MemoryRegister(Register):
     @property
     def address(self):
         return self._address
+
+
+class KeyboardRegister(MemoryRegister):
+    def __init__(self, address: int):
+        super(KeyboardRegister, self).__init__(address)
+
+    @property
+    def interrupt_permitted(self) -> bool:
+        return self._data[0]
+
+    @interrupt_permitted.setter
+    def interrupt_permitted(self, value: bool):
+        self._data[0] = value
+
+    @property
+    def key_index(self) -> int:
+        return self.get(size="byte", signed=False)
+
+    @key_index.setter
+    def key_index(self, value: int):
+        self.set(size="byte", signed=False, value=value)
+
+
+class VideoMemoryRegisterModeStart(MemoryRegister):
+    def __init__(self, address: int, VRAM_start: int, mode: int):
+        super(VideoMemoryRegisterModeStart, self).__init__(address)
+        self._data = bitarray("{:02b}".format(mode) + "{:014b}".format(VRAM_start // 4), endian='big')
+        assert self._data.length() == 16
+
+    @property
+    def VRAM_start(self) -> int:
+        return int(self._data[2:16].to01(), 2) * 4
+
+    @property
+    def mode(self) -> int:
+        return int(self._data[0:2].to01(), 2)
+
+
+class VideoMemoryRegisterOffset(MemoryRegister):
+    def __init__(self, address: int, offset: int):
+        super(VideoMemoryRegisterOffset, self).__init__(address)
+        self._data = bitarray("{:016b}".format(offset), endian='big')
+
+    @property
+    def offset(self) -> int:
+        return int(self._data[1:16].to01(), 2)
+
+    @property
+    def bit_clear(self) -> bool:
+        return self._data[0]
+
+    @bit_clear.setter
+    def bit_clear(self, value: bool):
+        self._data[0] = value

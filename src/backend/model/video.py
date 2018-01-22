@@ -3,41 +3,10 @@ import enum
 from PyQt5.QtGui import QImage, qRgb
 from bitarray import bitarray
 
+from src.backend.model.registers import Register, VideoMemoryRegisterModeStart, \
+    VideoMemoryRegisterOffset
 from src.backend.utils.exceptions import VideoException, VideoWrongMode
-from src.backend.model.registers import MemoryRegister, Register
 
-
-class VideoMemoryRegisterModeStart(MemoryRegister):
-    def __init__(self, address: int, VRAM_start: int, mode: int):
-        super(VideoMemoryRegisterModeStart, self).__init__(address)
-        self._data = bitarray("{:02b}".format(mode) + "{:014b}".format(VRAM_start // 4), endian='big')
-        assert self._data.length() == 16
-
-    @property
-    def VRAM_start(self) -> int:
-        return int(self._data[2:16].to01(), 2) * 4
-
-    @property
-    def mode(self) -> int:
-        return int(self._data[0:2].to01(), 2)
-
-
-class VideoMemoryRegisterOffset(MemoryRegister):
-    def __init__(self, address: int, offset: int):
-        super(VideoMemoryRegisterOffset, self).__init__(address)
-        self._data = bitarray("{:016b}".format(offset), endian='big')
-
-    @property
-    def offset(self) -> int:
-        return int(self._data[1:16].to01(), 2)
-
-    @property
-    def bit_clear(self) -> bool:
-        return self._data[0]
-
-    @bit_clear.setter
-    def bit_clear(self, value: bool):
-        self._data[0] = value
 
 class VideoMode(enum.Enum):
     MODE_O = (0, 256, 256, 1, {

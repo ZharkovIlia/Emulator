@@ -7,6 +7,7 @@ from src.backend.engine.cash import CashMemory
 from src.backend.engine.pool_registers import PoolRegisters
 from src.backend.model.commands import AbstractCommand, Operation, JumpCommand, BranchCommand, Commands
 from src.backend.model.programstatus import ProgramStatus
+from src.backend.utils.exceptions import EmulatorException
 
 
 class PipeComponentState(enum.Enum):
@@ -651,6 +652,12 @@ class Pipe:
             empty = empty and component.state == PipeComponentState.WAIT_NEXT_COMMAND
 
         return empty
+
+    def add_command(self):
+        if not self.empty():
+            raise EmulatorException(what="Cannot add command unconditionally")
+
+        self._add_command()
 
     def _progress(self, fetch_new_instruction: bool) -> bool:
         new_command = False

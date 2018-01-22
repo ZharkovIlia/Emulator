@@ -1,4 +1,5 @@
 from src.backend.engine.cash import CashMemory
+from src.backend.engine.keyboard import Keyboard
 from src.backend.engine.pipe import Pipe
 from src.backend.engine.pool_registers import PoolRegisters
 from src.backend.model.commands import Commands
@@ -45,7 +46,13 @@ class Emulator:
         self._pipe = Pipe(dmem=self._dcash, imem=self._icash, pool_registers=self._pool_registers,
                           ps=self._program_status, commands=self._commands, enabled=True)
 
+        self._keyboard = Keyboard(register=self._memory.keyboard_register, pipe=self._pipe, memory=self._memory,
+                                  program_status=self._program_status, program_counter=self._pc, stack_pointer=self._sp)
         self.stopped = False
+
+    @property
+    def keyboard(self):
+        return self._keyboard
 
     @property
     def pipe(self):
