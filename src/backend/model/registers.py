@@ -173,6 +173,7 @@ class ProgramCounter(OnlyEvenValueRegister):
 class MemoryRegister(Register):
     def __init__(self, address: int):
         super(MemoryRegister, self).__init__()
+        assert address % 2 == 0
         self._address = address
 
     def load(self, address: int, size: str) -> bitarray:

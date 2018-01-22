@@ -4,7 +4,7 @@ from PyQt5.QtGui import QImage, qRgb
 from bitarray import bitarray
 
 from src.backend.utils.exceptions import VideoException, VideoWrongMode
-from src.backend.model.registers import MemoryRegister
+from src.backend.model.registers import MemoryRegister, Register
 
 
 class VideoMemoryRegisterModeStart(MemoryRegister):
@@ -26,7 +26,7 @@ class VideoMemoryRegisterOffset(MemoryRegister):
 
     @property
     def offset(self):
-        return int(self._data[7:16].to01(), 2)
+        return int(self._data.to01(), 2)
 
 
 class VideoMode(enum.Enum):
@@ -51,6 +51,7 @@ class VideoMemory:
         self._offset = 0
         self._size: int = None
         self._VRAM_start: int = None
+        self._white_index: int = None
         self.set_VRAM_start(VRAM_start)
         self.set_mode(0)
 
@@ -68,13 +69,13 @@ class VideoMemory:
         for k, v in self._mode.color_table.items():
             self._image.setColor(k, v)
         white = qRgb(255, 255, 255)
-        white_index = None
+        self._white_index = None
         for index, color in self._mode.color_table.items():
             if color == white:
-                white_index = index
+                self._white_index = index
                 break
-        if white_index is not None:
-            self._image.fill(white_index)
+        assert self._white_index is not None
+        self._image.fill(self._white_index)
 
         assert self._mode.width * self._mode.height * self._mode.depth % 16 == 0, "Wrong configuration"
         assert self._mode.width * self._mode.depth % 8 == 0, "Wrong configuration"
@@ -87,21 +88,22 @@ class VideoMemory:
         self._VRAM_start = VRAM_start
 
     def set_offset(self, offset):
-        new_offset = offset % self._mode.height
-        if self._offset == new_offset:
+        if self._offset == offset:
             return
 
         image = QImage(self._mode.width, self._mode.height, QImage.Format_Indexed8)
         image.setColorTable(self._image.colorTable())
-        diff = new_offset - self._offset
+        diff = offset - self._offset
+        if diff < 0:
+            diff = Register.BOUND_PROPERTIES[("word", False)] + diff + 1
+        self._offset = offset
         for y in range(self._mode.height):
             from_y = y + diff
-            if from_y < 0:
-                from_y += self._mode.height
-            if from_y >= self._mode.height:
-                from_y -= self._mode.height
             for x in range(self._mode.width):
-                image.setPixel(x, y, self._image.pixelIndex(x, from_y))
+                if from_y >= self._mode.height:
+                    image.setPixel(x, y, self._white_index)
+                else:
+                    image.setPixel(x, y, self._image.pixelIndex(x, from_y))
 
         self._image = image
 

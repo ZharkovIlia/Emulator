@@ -5,7 +5,7 @@ from bitarray import bitarray
 class ROMFiller:
     @staticmethod
     def get_glyphs(size: int) -> dict:
-        alphabet = "abcdefghijklmnopqrstuvwxyz"
+        alphabet = "abcdefghijklmnopqrstuvwxyz "
         font = ImageFont.truetype("../../../resource/FreeMono.ttf", size=size)
         width, min_height = font.getsize(text='a')
         max_height = min_height
