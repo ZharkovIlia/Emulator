@@ -413,11 +413,11 @@ class MULCommand(AbstractCommand):
         value_src = self.src_operand.inner_register.get(size="word", signed=True)
         value_dest = self.dest_operand.inner_register.get(size="word", signed=True)
         tmp = value_dest * value_src
-        self.program_status.set(bit="N", value=tmp < 0)
-        self.program_status.set(bit="Z", value=tmp == 0)
-        self.program_status.set(bit="V", value=False)
+        self.program_status.set_status(bit="N", value=tmp < 0)
+        self.program_status.set_status(bit="Z", value=tmp == 0)
+        self.program_status.set_status(bit="V", value=False)
         if tmp < Register.BOUND_PROPERTIES[("word", True)][0] or tmp > Register.BOUND_PROPERTIES[("word", True)][1]:
-            self.program_status.set(bit="C", value=True)
+            self.program_status.set_status(bit="C", value=True)
 
         bitarr = bitarray(endian='big')
         bitarr.frombytes(tmp.to_bytes(4, byteorder='big', signed=True))
@@ -591,13 +591,65 @@ class MARKCommand(JumpCommand):
                                  "value": lambda: self._tmp_r5.word()})
 
 
+class RTICommand(JumpCommand):
+    def __init__(self, matcher, **kwargs):
+        super(RTICommand, self).__init__(**kwargs)
+        self._add_decode()
+        self._add_all_operations()
+
+    def _add_all_operations(self):
+        self._tmp_sp = Register()
+        self._inner_register_1 = Register()
+        self._inner_register_2 = Register()
+
+        self._operations.append({"operation": Operation.FETCH_REGISTER,
+                                 "register": 6,
+                                 "size": "word",
+                                 "callback": self._tmp_sp.set_word})
+
+        self._operations.append({"operation": Operation.FETCH_ADDRESS,
+                                 "address": lambda: self._tmp_sp.get(size="word", signed=False),
+                                 "size": "word",
+                                 "callback": self._inner_register_1.set_word})
+
+        self._operations.append({"operation": Operation.EXECUTE,
+                                 "callback": lambda: self._tmp_sp.inc(value=2),
+                                 "cycles": 1})
+
+        self._operations.append({"operation": Operation.FETCH_ADDRESS,
+                                 "address": lambda: self._tmp_sp.get(size="word", signed=False),
+                                 "size": "word",
+                                 "callback": self._inner_register_2.set_word})
+
+        self._operations.append({"operation": Operation.EXECUTE,
+                                 "callback": lambda: self._tmp_sp.inc(value=2),
+                                 "cycles": 1})
+
+        self._operations.append({"operation": Operation.EXECUTE,
+                                 "callback": lambda: self._program_status.set_word(self._inner_register_2.word()),
+                                 "cycles": 1})
+
+        self._operations.append({"operation": Operation.STORE_REGISTER,
+                                 "register": 6,
+                                 "size": "word",
+                                 "value": lambda: self._tmp_sp.word()})
+
+        self._add_jump()
+
+    def _add_jump(self):
+        self._operations.append({"operation": Operation.STORE_REGISTER,
+                                 "register": 7,
+                                 "size": "word",
+                                 "value": lambda: self._inner_register_1.word()})
+
+
 class CLRCommand(SingleOperandCommand):
     def __init__(self, **kwargs):
         super(CLRCommand, self).__init__(**kwargs)
 
     def execute(self):
         self.program_status.clear()
-        self.program_status.set(bit='Z', value=True)
+        self.program_status.set_status(bit='Z', value=True)
         self._dest_operand.inner_register.set(size=self.size, signed=False, value=0)
 
 
@@ -608,10 +660,10 @@ class COMCommand(SingleOperandCommand):
     def execute(self):
         value = self.dest_operand.inner_register.get(size=self.size, signed=True)
         value = ~value
-        self.program_status.set(bit="N", value=value < 0)
-        self.program_status.set(bit="Z", value=value == 0)
-        self.program_status.set(bit="V", value=False)
-        self.program_status.set(bit="C", value=True)
+        self.program_status.set_status(bit="N", value=value < 0)
+        self.program_status.set_status(bit="Z", value=value == 0)
+        self.program_status.set_status(bit="V", value=False)
+        self.program_status.set_status(bit="C", value=True)
         self.dest_operand.inner_register.set(size=self.size, signed=True, value=value)
 
 
@@ -623,13 +675,13 @@ class INCCommand(SingleOperandCommand):
         value = self.dest_operand.inner_register.get(size=self.size, signed=True)
         if value == Register.BOUND_PROPERTIES[(self.size, True)][1]:
             value = Register.BOUND_PROPERTIES[(self.size, True)][0]
-            self.program_status.set(bit="V", value=True)
+            self.program_status.set_status(bit="V", value=True)
         else:
             value += 1
-            self.program_status.set(bit="V", value=False)
+            self.program_status.set_status(bit="V", value=False)
 
-        self.program_status.set(bit="N", value=value < 0)
-        self.program_status.set(bit="Z", value=value == 0)
+        self.program_status.set_status(bit="N", value=value < 0)
+        self.program_status.set_status(bit="Z", value=value == 0)
         self.dest_operand.inner_register.set(size=self.size, signed=True, value=value)
 
 
@@ -641,13 +693,13 @@ class DECCommand(SingleOperandCommand):
         value = self.dest_operand.inner_register.get(size=self.size, signed=True)
         if value == Register.BOUND_PROPERTIES[(self.size, True)][0]:
             value = Register.BOUND_PROPERTIES[(self.size, True)][1]
-            self.program_status.set(bit="V", value=True)
+            self.program_status.set_status(bit="V", value=True)
         else:
             value -= 1
-            self.program_status.set(bit="V", value=False)
+            self.program_status.set_status(bit="V", value=False)
 
-        self.program_status.set(bit="N", value=value < 0)
-        self.program_status.set(bit="Z", value=value == 0)
+        self.program_status.set_status(bit="N", value=value < 0)
+        self.program_status.set_status(bit="Z", value=value == 0)
         self.dest_operand.inner_register.set(size=self.size, signed=True, value=value)
 
 
@@ -660,10 +712,10 @@ class NEGCommand(SingleOperandCommand):
         if value != Register.BOUND_PROPERTIES[(self.size, True)][0]:
             value = -value
 
-        self.program_status.set(bit="N", value=value < 0)
-        self.program_status.set(bit="Z", value=value == 0)
-        self.program_status.set(bit="V", value=(value == Register.BOUND_PROPERTIES[(self.size, True)][0]))
-        self.program_status.set(bit="C", value=value != 0)
+        self.program_status.set_status(bit="N", value=value < 0)
+        self.program_status.set_status(bit="Z", value=value == 0)
+        self.program_status.set_status(bit="V", value=(value == Register.BOUND_PROPERTIES[(self.size, True)][0]))
+        self.program_status.set_status(bit="C", value=value != 0)
         self.dest_operand.inner_register.set(size=self.size, signed=True, value=value)
 
 
@@ -675,8 +727,8 @@ class TSTCommand(SingleOperandCommand):
         value = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
         self.program_status.clear()
-        self.program_status.set(bit="N", value=value < 0)
-        self.program_status.set(bit="Z", value=value == 0)
+        self.program_status.set_status(bit="N", value=value < 0)
+        self.program_status.set_status(bit="Z", value=value == 0)
 
 
 class ASRCommand(SingleOperandCommand):
@@ -688,12 +740,12 @@ class ASRCommand(SingleOperandCommand):
     def execute(self):
         value = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
-        self.program_status.set(bit="C", value=value % 2 == 1)
+        self.program_status.set_status(bit="C", value=value % 2 == 1)
         value >>= 1
-        self.program_status.set(bit="N", value=value < 0)
-        self.program_status.set(bit="Z", value=value == 0)
-        self.program_status.set(bit="V", value=self.program_status.get(bit="C") ^
-                                self.program_status.get(bit="N"))
+        self.program_status.set_status(bit="N", value=value < 0)
+        self.program_status.set_status(bit="Z", value=value == 0)
+        self.program_status.set_status(bit="V", value=self.program_status.get_status(bit="C") ^
+                                       self.program_status.get_status(bit="N"))
 
         self.dest_operand.inner_register.set(size=self.size, signed=True, value=value)
 
@@ -706,12 +758,12 @@ class ASLCommand(SingleOperandCommand):
         value = self.dest_operand.inner_register.get(size=self.size, signed=False)
 
         value <<= 1
-        self.program_status.set(bit="C", value=value > Register.BOUND_PROPERTIES[(self.size, False)][1])
+        self.program_status.set_status(bit="C", value=value > Register.BOUND_PROPERTIES[(self.size, False)][1])
         value %= (Register.BOUND_PROPERTIES[(self.size, False)][1] + 1)
-        self.program_status.set(bit="N", value=value > Register.BOUND_PROPERTIES[(self.size, True)][1])
-        self.program_status.set(bit="Z", value=value == 0)
-        self.program_status.set(bit="V", value=self.program_status.get(bit="C") ^
-                                self.program_status.get(bit="N"))
+        self.program_status.set_status(bit="N", value=value > Register.BOUND_PROPERTIES[(self.size, True)][1])
+        self.program_status.set_status(bit="Z", value=value == 0)
+        self.program_status.set_status(bit="V", value=self.program_status.get_status(bit="C") ^
+                                       self.program_status.get_status(bit="N"))
 
         self.dest_operand.inner_register.set(size=self.size, signed=False, value=value)
 
@@ -727,13 +779,13 @@ class RORCommand(SingleOperandCommand):
 
         tmp_bit = (value % 2 == 1)
         value >>= 1
-        value += (0 if self.program_status.get(bit="C") is False
+        value += (0 if self.program_status.get_status(bit="C") is False
                   else Register.BOUND_PROPERTIES[(self.size, True)][1] + 1)
-        self.program_status.set(bit="C", value=tmp_bit)
-        self.program_status.set(bit="N", value=value > Register.BOUND_PROPERTIES[(self.size, True)][1])
-        self.program_status.set(bit="Z", value=value == 0)
-        self.program_status.set(bit="V", value=self.program_status.get(bit="C") ^
-                                self.program_status.get(bit="N"))
+        self.program_status.set_status(bit="C", value=tmp_bit)
+        self.program_status.set_status(bit="N", value=value > Register.BOUND_PROPERTIES[(self.size, True)][1])
+        self.program_status.set_status(bit="Z", value=value == 0)
+        self.program_status.set_status(bit="V", value=self.program_status.get_status(bit="C") ^
+                                       self.program_status.get_status(bit="N"))
 
         self.dest_operand.inner_register.set(size=self.size, signed=False, value=value)
 
@@ -746,13 +798,13 @@ class ROLCommand(SingleOperandCommand):
         value = self.dest_operand.inner_register.get(size=self.size, signed=False)
 
         value <<= 1
-        value += (0 if self.program_status.get(bit="C") is False else 1)
-        self.program_status.set(bit="C", value=value > Register.BOUND_PROPERTIES[(self.size, False)][1])
+        value += (0 if self.program_status.get_status(bit="C") is False else 1)
+        self.program_status.set_status(bit="C", value=value > Register.BOUND_PROPERTIES[(self.size, False)][1])
         value %= (Register.BOUND_PROPERTIES[(self.size, False)][1] + 1)
-        self.program_status.set(bit="N", value=value > Register.BOUND_PROPERTIES[(self.size, True)][1])
-        self.program_status.set(bit="Z", value=value == 0)
-        self.program_status.set(bit="V", value=self.program_status.get(bit="C") ^
-                                self.program_status.get(bit="N"))
+        self.program_status.set_status(bit="N", value=value > Register.BOUND_PROPERTIES[(self.size, True)][1])
+        self.program_status.set_status(bit="Z", value=value == 0)
+        self.program_status.set_status(bit="V", value=self.program_status.get_status(bit="C") ^
+                                       self.program_status.get_status(bit="N"))
 
         self.dest_operand.inner_register.set(size=self.size, signed=False, value=value)
 
@@ -766,8 +818,8 @@ class SWABCommand(SingleOperandCommand):
         value = self.dest_operand.inner_register.get(size="byte", signed=True)
 
         self.program_status.clear()
-        self.program_status.set(bit="N", value=value < 0)
-        self.program_status.set(bit="Z", value=value == 0)
+        self.program_status.set_status(bit="N", value=value < 0)
+        self.program_status.set_status(bit="Z", value=value == 0)
 
 
 class ADCCommand(SingleOperandCommand):
@@ -775,19 +827,19 @@ class ADCCommand(SingleOperandCommand):
         super(ADCCommand, self).__init__(**kwargs)
 
     def execute(self):
-        tmp_bit = self.program_status.get(bit="C")
+        tmp_bit = self.program_status.get_status(bit="C")
         value = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
-        self.program_status.set(bit="C", value=(value == -1 and tmp_bit is True))
+        self.program_status.set_status(bit="C", value=(value == -1 and tmp_bit is True))
         if value == Register.BOUND_PROPERTIES[(self.size, True)][1] and tmp_bit is True:
             value = Register.BOUND_PROPERTIES[(self.size, True)][0]
-            self.program_status.set(bit="V", value=True)
+            self.program_status.set_status(bit="V", value=True)
         else:
             value += (0 if tmp_bit is False else 1)
-            self.program_status.set(bit="V", value=False)
+            self.program_status.set_status(bit="V", value=False)
 
-        self.program_status.set(bit="N", value=value < 0)
-        self.program_status.set(bit="Z", value=value == 0)
+        self.program_status.set_status(bit="N", value=value < 0)
+        self.program_status.set_status(bit="Z", value=value == 0)
         self.dest_operand.inner_register.set(size=self.size, signed=True, value=value)
 
 
@@ -796,18 +848,18 @@ class SBCCommand(SingleOperandCommand):
         super(SBCCommand, self).__init__(**kwargs)
 
     def execute(self):
-        tmp_bit = self.program_status.get(bit="C")
+        tmp_bit = self.program_status.get_status(bit="C")
         value = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
-        self.program_status.set(bit="C", value=not (value == 0 and tmp_bit is True))
-        self.program_status.set(bit="V", value=value == Register.BOUND_PROPERTIES[(self.size, True)][0])
+        self.program_status.set_status(bit="C", value=not (value == 0 and tmp_bit is True))
+        self.program_status.set_status(bit="V", value=value == Register.BOUND_PROPERTIES[(self.size, True)][0])
         if value == Register.BOUND_PROPERTIES[(self.size, True)][0] and tmp_bit is True:
             value = Register.BOUND_PROPERTIES[(self.size, True)][1]
         else:
             value -= (0 if tmp_bit is False else 1)
 
-        self.program_status.set(bit="N", value=value < 0)
-        self.program_status.set(bit="Z", value=value == 0)
+        self.program_status.set_status(bit="N", value=value < 0)
+        self.program_status.set_status(bit="Z", value=value == 0)
         self.dest_operand.inner_register.set(size=self.size, signed=True, value=value)
 
 
@@ -816,9 +868,9 @@ class SXTCommand(SingleOperandCommand):
         super(SXTCommand, self).__init__(**kwargs)
 
     def execute(self):
-        value = 0 if self.program_status.get(bit="N") is False else Register.BOUND_PROPERTIES[("word", False)][1]
+        value = 0 if self.program_status.get_status(bit="N") is False else Register.BOUND_PROPERTIES[("word", False)][1]
 
-        self.program_status.set(bit="Z", value=value == 0)
+        self.program_status.set_status(bit="Z", value=value == 0)
         self.dest_operand.inner_register.set(size="word", signed=False, value=value)
 
 
@@ -834,9 +886,9 @@ class MOVCommand(DoubleOperandCommand):
         if self.on_byte and self.dest_operand.mode == 0:
             size_exec = 'word'
 
-        self.program_status.set(bit="N", value=value < 0)
-        self.program_status.set(bit="Z", value=value == 0)
-        self.program_status.set(bit="V", value=False)
+        self.program_status.set_status(bit="N", value=value < 0)
+        self.program_status.set_status(bit="Z", value=value == 0)
+        self.program_status.set_status(bit="V", value=False)
         self.dest_operand.inner_register.set(size=size_exec, signed=True, value=value)
 
     def _add_all_operations(self):
@@ -863,12 +915,12 @@ class CMPCommand(DoubleOperandCommand):
         tmp.invert()
         tmp = value_src + int(tmp.to01(), 2) + 1
 
-        self.program_status.set(bit="C", value=not (tmp > Register.BOUND_PROPERTIES[(self.size, False)][1]))
+        self.program_status.set_status(bit="C", value=not (tmp > Register.BOUND_PROPERTIES[(self.size, False)][1]))
         tmp %= (Register.BOUND_PROPERTIES[(self.size, False)][1] + 1)
-        self.program_status.set(bit="V", value=value_dest ^ value_src > max_signed
-                                and not value_dest ^ tmp > max_signed)
-        self.program_status.set(bit="N", value=tmp > max_signed)
-        self.program_status.set(bit="Z", value=tmp == 0)
+        self.program_status.set_status(bit="V", value=value_dest ^ value_src > max_signed
+                                       and not value_dest ^ tmp > max_signed)
+        self.program_status.set_status(bit="N", value=tmp > max_signed)
+        self.program_status.set_status(bit="Z", value=tmp == 0)
 
 
 class ADDCommand(DoubleOperandCommand):
@@ -880,12 +932,12 @@ class ADDCommand(DoubleOperandCommand):
         value_dest = self.dest_operand.inner_register.get(size="word", signed=False)
         max_signed_word = Register.BOUND_PROPERTIES[("word", True)][1]
         tmp = value_dest + value_src
-        self.program_status.set(bit="C", value=(tmp > Register.BOUND_PROPERTIES[("word", False)][1]))
+        self.program_status.set_status(bit="C", value=(tmp > Register.BOUND_PROPERTIES[("word", False)][1]))
         tmp %= (Register.BOUND_PROPERTIES[("word", False)][1] + 1)
-        self.program_status.set(bit="V", value=not value_dest ^ value_src > max_signed_word
-                                and value_src ^ tmp > max_signed_word)
-        self.program_status.set(bit="N", value=tmp > max_signed_word)
-        self.program_status.set(bit="Z", value=tmp == 0)
+        self.program_status.set_status(bit="V", value=not value_dest ^ value_src > max_signed_word
+                                       and value_src ^ tmp > max_signed_word)
+        self.program_status.set_status(bit="N", value=tmp > max_signed_word)
+        self.program_status.set_status(bit="Z", value=tmp == 0)
         self.dest_operand.inner_register.set(size="word", signed=False, value=tmp)
 
 
@@ -902,12 +954,12 @@ class SUBCommand(DoubleOperandCommand):
         tmp.invert()
         tmp = value_dest + int(tmp.to01(), 2) + 1
 
-        self.program_status.set(bit="C", value=not (tmp > Register.BOUND_PROPERTIES[("word", False)][1]))
+        self.program_status.set_status(bit="C", value=not (tmp > Register.BOUND_PROPERTIES[("word", False)][1]))
         tmp %= (Register.BOUND_PROPERTIES[("word", False)][1] + 1)
-        self.program_status.set(bit="V", value=value_dest ^ value_src > max_signed_word
-                                and not value_src ^ tmp > max_signed_word)
-        self.program_status.set(bit="N", value=tmp > max_signed_word)
-        self.program_status.set(bit="Z", value=tmp == 0)
+        self.program_status.set_status(bit="V", value=value_dest ^ value_src > max_signed_word
+                                       and not value_src ^ tmp > max_signed_word)
+        self.program_status.set_status(bit="N", value=tmp > max_signed_word)
+        self.program_status.set_status(bit="Z", value=tmp == 0)
         self.dest_operand.inner_register.set(size="word", signed=False, value=tmp)
 
 
@@ -920,9 +972,9 @@ class BITCommand(DoubleOperandCommand):
         value_dest = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
         tmp = value_src & value_dest
-        self.program_status.set(bit="N", value=tmp < 0)
-        self.program_status.set(bit="Z", value=tmp == 0)
-        self.program_status.set(bit="V", value=False)
+        self.program_status.set_status(bit="N", value=tmp < 0)
+        self.program_status.set_status(bit="Z", value=tmp == 0)
+        self.program_status.set_status(bit="V", value=False)
 
 
 class BICCommand(DoubleOperandCommand):
@@ -935,9 +987,9 @@ class BICCommand(DoubleOperandCommand):
 
         tmp = ~value_src
         tmp = tmp & value_dest
-        self.program_status.set(bit="N", value=tmp < 0)
-        self.program_status.set(bit="Z", value=tmp == 0)
-        self.program_status.set(bit="V", value=False)
+        self.program_status.set_status(bit="N", value=tmp < 0)
+        self.program_status.set_status(bit="Z", value=tmp == 0)
+        self.program_status.set_status(bit="V", value=False)
         self.dest_operand.inner_register.set(size=self.size, signed=True, value=tmp)
 
 
@@ -950,9 +1002,9 @@ class BISCommand(DoubleOperandCommand):
         value_dest = self.dest_operand.inner_register.get(size=self.size, signed=True)
 
         tmp = value_src | value_dest
-        self.program_status.set(bit="N", value=tmp < 0)
-        self.program_status.set(bit="Z", value=tmp == 0)
-        self.program_status.set(bit="V", value=False)
+        self.program_status.set_status(bit="N", value=tmp < 0)
+        self.program_status.set_status(bit="Z", value=tmp == 0)
+        self.program_status.set_status(bit="V", value=False)
         self.dest_operand.inner_register.set(size=self.size, signed=True, value=tmp)
 
 
@@ -965,9 +1017,9 @@ class XORCommand(RegisterSourceCommand):
         value_dest = self.dest_operand.inner_register.get(size="word", signed=True)
 
         tmp = value_src ^ value_dest
-        self.program_status.set(bit="N", value=tmp < 0)
-        self.program_status.set(bit="Z", value=tmp == 0)
-        self.program_status.set(bit="V", value=False)
+        self.program_status.set_status(bit="N", value=tmp < 0)
+        self.program_status.set_status(bit="Z", value=tmp == 0)
+        self.program_status.set_status(bit="V", value=False)
         self.dest_operand.inner_register.set(size="word", signed=True, value=tmp)
 
 
@@ -984,7 +1036,7 @@ class BNECommand(BranchCommand):
         super(BNECommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = not self.program_status.get(bit="Z")
+        self._if_branch = not self.program_status.get_status(bit="Z")
 
 
 class BEQCommand(BranchCommand):
@@ -992,7 +1044,7 @@ class BEQCommand(BranchCommand):
         super(BEQCommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = self.program_status.get(bit="Z")
+        self._if_branch = self.program_status.get_status(bit="Z")
 
 
 class BPLCommand(BranchCommand):
@@ -1000,7 +1052,7 @@ class BPLCommand(BranchCommand):
         super(BPLCommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = not self.program_status.get(bit="N")
+        self._if_branch = not self.program_status.get_status(bit="N")
 
 
 class BMICommand(BranchCommand):
@@ -1008,7 +1060,7 @@ class BMICommand(BranchCommand):
         super(BMICommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = self.program_status.get(bit="N")
+        self._if_branch = self.program_status.get_status(bit="N")
 
 
 class BVCCommand(BranchCommand):
@@ -1016,7 +1068,7 @@ class BVCCommand(BranchCommand):
         super(BVCCommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = not self.program_status.get(bit="V")
+        self._if_branch = not self.program_status.get_status(bit="V")
 
 
 class BVSCommand(BranchCommand):
@@ -1024,7 +1076,7 @@ class BVSCommand(BranchCommand):
         super(BVSCommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = self.program_status.get(bit="V")
+        self._if_branch = self.program_status.get_status(bit="V")
 
 
 class BCCCommand(BranchCommand):
@@ -1032,7 +1084,7 @@ class BCCCommand(BranchCommand):
         super(BCCCommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = not self.program_status.get(bit="C")
+        self._if_branch = not self.program_status.get_status(bit="C")
 
 
 class BCSCommand(BranchCommand):
@@ -1040,7 +1092,7 @@ class BCSCommand(BranchCommand):
         super(BCSCommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = self.program_status.get(bit="C")
+        self._if_branch = self.program_status.get_status(bit="C")
 
 
 class BGECommand(BranchCommand):
@@ -1048,7 +1100,7 @@ class BGECommand(BranchCommand):
         super(BGECommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = not (self.program_status.get(bit="N") ^ self.program_status.get(bit="V"))
+        self._if_branch = not (self.program_status.get_status(bit="N") ^ self.program_status.get_status(bit="V"))
 
 
 class BLTCommand(BranchCommand):
@@ -1056,7 +1108,7 @@ class BLTCommand(BranchCommand):
         super(BLTCommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = (self.program_status.get(bit="N") ^ self.program_status.get(bit="V"))
+        self._if_branch = (self.program_status.get_status(bit="N") ^ self.program_status.get_status(bit="V"))
 
 
 class BGTCommand(BranchCommand):
@@ -1064,8 +1116,8 @@ class BGTCommand(BranchCommand):
         super(BGTCommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = not (self.program_status.get(bit="Z") or
-                               (self.program_status.get(bit="N") ^ self.program_status.get(bit="V")))
+        self._if_branch = not (self.program_status.get_status(bit="Z") or
+                               (self.program_status.get_status(bit="N") ^ self.program_status.get_status(bit="V")))
 
 
 class BLECommand(BranchCommand):
@@ -1073,8 +1125,8 @@ class BLECommand(BranchCommand):
         super(BLECommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = (self.program_status.get(bit="Z") or
-                           (self.program_status.get(bit="N") ^ self.program_status.get(bit="V")))
+        self._if_branch = (self.program_status.get_status(bit="Z") or
+                           (self.program_status.get_status(bit="N") ^ self.program_status.get_status(bit="V")))
 
 
 class BHICommand(BranchCommand):
@@ -1082,7 +1134,7 @@ class BHICommand(BranchCommand):
         super(BHICommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = not self.program_status.get(bit="C") and not self.program_status.get(bit="Z")
+        self._if_branch = not self.program_status.get_status(bit="C") and not self.program_status.get_status(bit="Z")
 
 
 class BLOSCommand(BranchCommand):
@@ -1090,7 +1142,7 @@ class BLOSCommand(BranchCommand):
         super(BLOSCommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = self.program_status.get(bit="C") or self.program_status.get(bit="Z")
+        self._if_branch = self.program_status.get_status(bit="C") or self.program_status.get_status(bit="Z")
 
 
 class SOBCommand(BranchCommand):
@@ -1098,7 +1150,7 @@ class SOBCommand(BranchCommand):
         super(SOBCommand, self).__init__(**kwargs)
 
     def execute(self):
-        self._if_branch = self._inner_ps.get(bit='Z') is False
+        self._if_branch = self._inner_ps.get_status(bit='Z') is False
 
     def _extract_offset(self):
         tmp = bitarray("00", endian='big')
@@ -1181,6 +1233,7 @@ class InstanceCommand(enum.Enum):
     RTS  = (               r'0000000010000' + _REG_PATTERN,              RTSCommand,  "RTS",  False, 0)
     MARK = (               r'0000110100' + _NUMBER_PATTERN,              MARKCommand, "MARK", False, 0)
     SOB  = (               r'0111111' + _REG_PATTERN + _SOB_OFFSET_PTRN, SOBCommand,  "SOB",  False, 7)
+    RTI  = (               r'0000000000000010',                          RTICommand,  "RTI",  False, 0)
 
     #BHIS = (               r'10000110'   + _OFFSET_PATTERN,              BHISCommand, "BHIS", False)
     #BLO  = (               r'10000111'   + _OFFSET_PATTERN,              BLOCommand,  "BLO",  False)

@@ -8,6 +8,7 @@ from src.backend.engine.cash import CashMemory
 from src.backend.engine.pool_registers import PoolRegisters
 from src.backend.model.commands import AbstractCommand, Operation, JumpCommand, BranchCommand, Commands
 from src.backend.model.programstatus import ProgramStatus
+from src.backend.utils.exceptions import EmulatorException
 
 
 class PipeComponentState(enum.Enum):
@@ -606,6 +607,7 @@ class Pipe:
 
         self.enabled = enabled
         self._branch = False
+        self._last_instruction_address = self._pc.get(size="word", signed=False)
         self.clear_statistics()
         self._add_command()
 
@@ -634,6 +636,10 @@ class Pipe:
         self._lock.lock()
         self._instructions = value
         self._lock.unlock()
+
+    @property
+    def last_instruction_address(self):
+        return self._last_instruction_address
 
     def clear_statistics(self):
         self._instructions = 0
@@ -667,6 +673,12 @@ class Pipe:
             empty = empty and component.state == PipeComponentState.WAIT_NEXT_COMMAND
 
         return empty
+
+    def add_command(self):
+        if not self.empty():
+            raise EmulatorException(what="Cannot add command unconditionally")
+
+        self._add_command()
 
     def _progress(self, fetch_new_instruction: bool) -> bool:
         new_command = False
@@ -723,12 +735,15 @@ class Pipe:
         return worked
 
     def _add_command(self):
-        self.instructions += 1
+
+        self._instructions += 1
+        self._last_instruction_address = self._pc.get(size="word", signed=False)
+
         if self._commands is None:
-            instr = self._imem.memory.load(address=self._pc.get(size="word", signed=False), size="word")
+            instr = self._imem.memory.load(address=self._last_instruction_address, size="word")
             command = Commands.get_command_by_code(code=instr, program_status=self._program_status)
         else:
-            command = self._commands[self._pc.get(size="word", signed=False)]
+            command = self._commands[self._last_instruction_address]
 
         if isinstance(command, JumpCommand) or isinstance(command, BranchCommand):
             self._branch = True

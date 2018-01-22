@@ -73,7 +73,7 @@ class RegisterWindow(QWidget):
             self.register_lines[i].set_value(value)
 
         for line in self.status_lines:
-            line.set_value(self.emulator.program_status.get(line.name.text()))
+            line.set_value(self.emulator.program_status.get_status(line.name.text()))
 
     def reset(self, emu: Emulator):
         self.emulator = emu

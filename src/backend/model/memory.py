@@ -1,6 +1,7 @@
 from src.backend.utils.exceptions import MemoryException, MemoryIndexOutOfBound, MemoryOddAddressing, \
     MemoryWrongConfiguration
-from src.backend.model.video import VideoMemory, VideoMemoryRegisterModeStart, VideoMemoryRegisterOffset, VideoMode
+from src.backend.model.video import VideoMemory, VideoMode
+from src.backend.model.registers import VideoMemoryRegisterModeStart, VideoMemoryRegisterOffset, KeyboardRegister
 from bitarray import bitarray
 import enum
 
@@ -32,18 +33,15 @@ class Memory:
 
     def __init__(self):
         self._data = bytearray(0 for _ in range(0, Memory.SIZE))
-        self._video = VideoMemory(MemoryPart.VRAM.start)
-        self._start_io = Memory.SIZE - 4
+        self._start_io = Memory.SIZE - 6
 
-        self._video_register_mode_start = VideoMemoryRegisterModeStart(self._start_io)
-        self._video_register_mode_start.set_word(value=bitarray("00" + "{:014b}".format(MemoryPart.VRAM.start // 4),
-                                                                endian='big'))
-        self._video.set_VRAM_start(MemoryPart.VRAM.start)
-        self._video.set_mode(VideoMode.MODE_O.mode)
+        self._video_register_mode_start = VideoMemoryRegisterModeStart(
+            self._start_io, MemoryPart.VRAM.start, VideoMode.MODE_O.mode
+        )
+        self._video_register_offset = VideoMemoryRegisterOffset(self._start_io + 2, offset=0)
+        self._keyboard_register = KeyboardRegister(self._start_io + 4)
 
-        self._video_register_offset = VideoMemoryRegisterOffset(self._start_io + 2)
-        self._video_register_offset.set(size="word", signed=False, value=0)
-        self._video.set_offset(0)
+        self._video = VideoMemory(self._video_register_mode_start, self._video_register_offset)
         self._check_configuration()
 
     def load(self, address: int, size: str) -> bitarray:
@@ -81,6 +79,10 @@ class Memory:
     @property
     def video_register_offset_address(self) -> int:
         return self._video_register_offset.address
+
+    @property
+    def keyboard_register(self):
+        return self._keyboard_register
 
     @property
     def data(self):
@@ -132,6 +134,9 @@ class Memory:
         if (address // 2) * 2 == self._video_register_offset.address:
             return self._video_register_offset.load(address=address, size=size)
 
+        if (address // 2) * 2 == self._keyboard_register.address:
+            return self._keyboard_register.load(address=address, size=size)
+
         return None
 
     def _store_to_devices(self, address: int, size: str, value: bitarray) -> bool:
@@ -141,22 +146,26 @@ class Memory:
 
         if (address // 2) * 2 == self._video_register_mode_start.address:
             self._video_register_mode_start.store(address=address, size=size, value=value)
-            self._video.set_mode(self._video_register_mode_start.mode)
-            self._video.set_VRAM_start(self._video_register_mode_start.VRAM_start)
+            self._video.set_mode(self._video_register_mode_start)
             self._check_configuration()
             return True
 
         if (address // 2) * 2 == self._video_register_offset.address:
             self._video_register_offset.store(address=address, size=size, value=value)
-            self._video.set_offset(self._video_register_offset.offset)
+            self._video.set_offset(self._video_register_offset)
+            return True
+
+        if (address // 2) * 2 == self._keyboard_register.address:
+            self._keyboard_register.store(address=address, size=size, value=value)
             return True
 
         return False
 
     def operation_on_device(self, address: int) -> bool:
-        if address >= self._video.VRAM_start and address < self._video.VRAM_start + self._video.size \
+        if self._video.VRAM_start <= address < self._video.VRAM_start + self._video.size \
                 or (address // 2) * 2 == self._video_register_mode_start.address \
-                or (address // 2) * 2 == self._video_register_offset.address:
+                or (address // 2) * 2 == self._video_register_offset.address \
+                or (address // 2) * 2 == self._keyboard_register.address:
             return True
 
         return False
