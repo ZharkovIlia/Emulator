@@ -108,6 +108,36 @@ class PipeBox(Box):
         self.emulator.pipe.enabled = False
 
 
+class ScreenField(QLabel):
+    def __init__(self, emu: Emulator):
+        super().__init__()
+        self.emulator = emu
+        self.show_monitor(self.emulator.memory.video.image)
+        self.emulator.memory.video.set_on_show(self.show_monitor)
+        self.setFocusPolicy(Qt.ClickFocus)
+        #self.setAlignment(Qt.AlignCenter)
+        self.setFixedSize(self.emulator.memory.video.mode.height,
+                          self.emulator.memory.video.mode.width)
+
+
+    def keyPressEvent(self, e):
+        print(e.text())
+
+    def focusInEvent(self, QFocusEvent):
+        self.setFrameStyle(1)
+
+    def focusOutEvent(self, QFocusEvent):
+        self.setFrameStyle(0)
+
+    def show_monitor(self, image: QImage):
+        self.setPixmap(QPixmap.fromImage(image))
+
+    def reset(self, emu: Emulator):
+        self.emulator = emu
+        self.show_monitor(self.emulator.memory.video.image)
+        self.emulator.memory.video.set_on_show(self.show_monitor)
+
+
 class Screen(QWidget):
     def __init__(self, emulator: Emulator):
         super().__init__()
@@ -115,9 +145,7 @@ class Screen(QWidget):
         self.initUI()
 
     def initUI(self):
-        self.screen = QLabel()
-        self.show_monitor(self.emulator.memory.video.image)
-        self.emulator.memory.video.set_on_show(self.show_monitor)
+        self.screen = ScreenField(self.emulator)
 
         self.start = QPushButton("run", self)
         self.step = QPushButton("step", self)
@@ -129,8 +157,13 @@ class Screen(QWidget):
         buttons.addWidget(self.step)
         buttons.addWidget(self.stop)
         buttons.addWidget(self.reset)
+        buttons.setContentsMargins(10, 10, 10, 10)
 
-        self.screen.setAlignment(Qt.AlignHCenter)
+        l = QHBoxLayout()
+        l.addWidget(self.screen)
+        l.setContentsMargins(10, 10, 10, 10)
+
+#        self.screen.setAlignment(Qt.AlignCenter)
         self.cash = CashBox(self.emulator)
         self.pipe = PipeBox(self.emulator)
         stat = QHBoxLayout()
@@ -139,7 +172,8 @@ class Screen(QWidget):
         stat.addWidget(self.pipe)
 
         layout = QGridLayout()
-        layout.addWidget(self.screen, 1, 0, 2, 2)
+        #layout.addWidget(self.screen, 1, 0, 2, 2)
+        layout.addLayout(l, 0, 0, 2, 2)
         layout.addLayout(buttons, 3, 0, 1, 2)
         layout.addWidget(self.cash, 4, 0)
         layout.addWidget(self.pipe, 4, 1)
@@ -149,17 +183,13 @@ class Screen(QWidget):
         #layout.addWidget(self.screen)
         #layout.addLayout(buttons)
         #layout.addLayout(stat)
-        #layout.setAlignment(Qt.AlignVCenter)
+        layout.setAlignment(Qt.AlignTop)
 
         self.setLayout(layout)
-
-    def show_monitor(self, image: QImage):
-        self.screen.setPixmap(QPixmap.fromImage(image))
 
     def ereset(self, emu: Emulator):
         self.emulator = emu
         self.cash.reset(emu)
         self.pipe.reset(emu)
-        self.show_monitor(self.emulator.memory.video.image)
-        self.emulator.memory.video.set_on_show(self.show_monitor)
+        self.screen.reset(emu)
 
