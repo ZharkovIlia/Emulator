@@ -9,19 +9,13 @@ class Box(QWidget):
     def __init__(self, nlines):
         super().__init__()
         self.checkEnabled = QCheckBox()
-        self.labelEnabled = QLabel()
+        self.checkEnabled.setChecked(False)
         fields = QVBoxLayout()
-        self.enabled = QHBoxLayout()
-        self.enabled.setAlignment(Qt.AlignLeft)
-        self.enabled.addWidget(self.checkEnabled)
-        self.enabled.addWidget(self.labelEnabled)
-        fields.addLayout(self.enabled)
+        fields.addWidget(self.checkEnabled)
         self.lines = list(QHBoxLayout() for _ in range(nlines))
         self.label = list(QLabel() for _ in range(nlines))
-        self.text = list(QLineEdit() for _ in range(nlines))
+        self.text = list(QLabel() for _ in range(nlines))
         for i in range(nlines):
-            self.text[i].setReadOnly(True)
-            self.text[i].setFrame(False)
             self.lines[i].addWidget(self.label[i])
             self.lines[i].addWidget(self.text[i])
             self.lines[i].setAlignment(Qt.AlignLeft)
@@ -35,28 +29,84 @@ class CashBox(Box):
     def __init__(self, emulator: Emulator):
         super().__init__(3)
         self.emulator = emulator
-        self.labelEnabled.setText("Cash enabled")
+        self.emulator.dcash.enabled = False
+        self.emulator.icash.enabled = False
+        self.checkEnabled.setText("Cash enabled")
         self.label[0].setText("Cash hits: ")
         self.label[1].setText("Cash misses: ")
         self.label[2].setText("Cash rate: ")
         self.checkEnabled.stateChanged.connect(self.turn)
 
+        hits = self.emulator.icash.hits + self.emulator.dcash.hits
+        misses = self.emulator.icash.misses + self.emulator.dcash.misses
+        self.text[0].setText(str(hits))
+        self.text[1].setText(str(misses))
+        if hits + misses != 0:
+            self.text[2].setText('%.2f' % (hits / (hits + misses)))
+        else:
+            self.text[2].setText('-')
+
     def turn(self):
-        print("cash")
+        self.emulator.dcash.enabled = self.checkEnabled.isChecked()
+        self.emulator.icash.enabled = self.checkEnabled.isChecked()
+
+    def get_stat(self):
+        hits = self.emulator.icash.hits + self.emulator.dcash.hits
+        misses = self.emulator.icash.misses + self.emulator.dcash.misses
+        self.text[0].setText(str(hits))
+        self.text[1].setText(str(misses))
+        if hits + misses != 0:
+            self.text[2].setText('%.2f' % (hits / (hits + misses)))
+        else:
+            self.text[2].setText('-')
+
+    def reset(self, emu: Emulator):
+        self.emulator = emu
+        self.get_stat()
+        self.checkEnabled.setChecked(False)
+        self.emulator.dcash.enabled = False
+        self.emulator.icash.enabled = False
 
 
 class PipeBox(Box):
     def __init__(self, emulator: Emulator):
         super().__init__(3)
         self.emulator = emulator
-        self.labelEnabled.setText("Pipe enabled")
-        self.label[0].setText("cpu cycles: ")
+        self.emulator.pipe.enabled = False
+        self.checkEnabled.setText("Pipe enabled")
+        self.label[0].setText("Cpu cycles: ")
         self.label[1].setText("Instructions: ")
         self.label[2].setText("cycles/instruction: ")
         self.checkEnabled.stateChanged.connect(self.turn)
 
+        cycles = self.emulator.pipe.cycles
+        instructions = self.emulator.pipe.instructions
+        self.text[0].setText(str(cycles))
+        self.text[1].setText(str(instructions))
+        if instructions != 0:
+            self.text[2].setText('%.2f' % (cycles / instructions))
+        else:
+            self.text[2].setText('-')
+
     def turn(self):
-        print("pipe")
+        self.emulator.pipe.enabled = self.checkEnabled.isChecked()
+
+    def get_stat(self):
+        cycles = self.emulator.pipe.cycles
+        instructions = self.emulator.pipe.instructions
+        self.text[0].setText(str(cycles))
+        self.text[1].setText(str(instructions))
+        if instructions != 0:
+            self.text[2].setText('%.2f' % (cycles / instructions))
+        else:
+            self.text[2].setText('-')
+
+    def reset(self, emu: Emulator):
+        self.emulator = emu
+        self.get_stat()
+        self.checkEnabled.setChecked(False)
+        self.emulator.pipe.enabled = False
+
 
 class Screen(QWidget):
     def __init__(self, emulator: Emulator):
@@ -89,9 +139,11 @@ class Screen(QWidget):
         stat.addWidget(self.pipe)
 
         layout = QGridLayout()
-        layout.addWidget(self.screen, 1, 0, 3, 3)
-        layout.addLayout(buttons, 4, 0, 1, 3)
-        layout.addLayout(stat, 5, 0, 1, 3)
+        layout.addWidget(self.screen, 1, 0, 2, 2)
+        layout.addLayout(buttons, 3, 0, 1, 2)
+        layout.addWidget(self.cash, 4, 0)
+        layout.addWidget(self.pipe, 4, 1)
+        #layout.addLayout(stat, 5, 0, 1, 3)
 
         #layout = QVBoxLayout()
         #layout.addWidget(self.screen)
@@ -106,6 +158,8 @@ class Screen(QWidget):
 
     def ereset(self, emu: Emulator):
         self.emulator = emu
+        self.cash.reset(emu)
+        self.pipe.reset(emu)
         self.show_monitor(self.emulator.memory.video.image)
         self.emulator.memory.video.set_on_show(self.show_monitor)
 

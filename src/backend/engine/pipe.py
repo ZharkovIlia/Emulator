@@ -1,4 +1,5 @@
 import enum
+from PyQt5.QtCore import QMutex
 from collections import deque
 
 from bitarray import bitarray
@@ -601,6 +602,8 @@ class Pipe:
         self._imem = imem
         self._dmem = dmem
 
+        self._lock = QMutex()
+
         self.enabled = enabled
         self._branch = False
         self.clear_statistics()
@@ -608,18 +611,36 @@ class Pipe:
 
     @property
     def cycles(self):
-        return self._cycles
+        self._lock.lock()
+        res = self._cycles
+        self._lock.unlock()
+        return res
+
+    @cycles.setter
+    def cycles(self, value):
+        self._lock.lock()
+        self._cycles = value
+        self._lock.unlock()
 
     @property
     def instructions(self):
-        return self._instructions
+        self._lock.lock()
+        res = self._instructions
+        self._lock.unlock()
+        return res
+
+    @instructions.setter
+    def instructions(self, value):
+        self._lock.lock()
+        self._instructions = value
+        self._lock.unlock()
 
     def clear_statistics(self):
         self._instructions = 0
         self._cycles = 0
 
     def cycle(self) -> bool:
-        self._cycles += 1
+        self.cycles += 1
         new_command = False
         if self.empty() or self.enabled and self._components[0].state == PipeComponentState.WAIT_NEXT_COMMAND \
                 and not self._branch:
@@ -636,7 +657,7 @@ class Pipe:
             cycles += 1
             self._progress(fetch_new_instruction=False)
 
-        self._cycles += cycles
+        self.cycles += cycles
         self._branch = False
         return cycles
 
@@ -702,7 +723,7 @@ class Pipe:
         return worked
 
     def _add_command(self):
-        self._instructions += 1
+        self.instructions += 1
         if self._commands is None:
             instr = self._imem.memory.load(address=self._pc.get(size="word", signed=False), size="word")
             command = Commands.get_command_by_code(code=instr, program_status=self._program_status)

@@ -1,3 +1,4 @@
+from PyQt5.QtCore import QMutex
 from bitarray import bitarray
 
 from src.backend.model.memory import Memory
@@ -67,6 +68,7 @@ class CashMemory:
         self._busy = False
         self._address = -1
         self._rw: str = None
+        self._lock = QMutex()
         self.clear_statistics()
         for string in range(0, self.NUM_STRINGS):
             self._strings.append([CashLine(string, self.ASSOCIATION_DEGREE - i - 1)
@@ -84,11 +86,29 @@ class CashMemory:
 
     @property
     def hits(self):
-        return self._hits
+        self._lock.lock()
+        res = self._hits
+        self._lock.unlock()
+        return res
+
+    @hits.setter
+    def hits(self, value):
+        self._lock.lock()
+        self._hits = value
+        self._lock.unlock()
 
     @property
     def misses(self):
-        return self._misses
+        self._lock.lock()
+        res = self._misses
+        self._lock.unlock()
+        return res
+
+    @misses.setter
+    def misses(self, value):
+        self._lock.lock()
+        self._misses = value
+        self._lock.unlock()
 
     @property
     def address(self):
@@ -125,9 +145,9 @@ class CashMemory:
 
             if line.missed:
                 line.missed = False
-                self._misses += 1
+                self.misses += 1
             else:
-                self._hits += 1
+                self.hits += 1
             return True, self._memory.load(address, size)
 
         if not self._busy:
@@ -155,9 +175,9 @@ class CashMemory:
 
             if line.missed:
                 line.missed = False
-                self._misses += 1
+                self.misses += 1
             else:
-                self._hits += 1
+                self.hits += 1
             return True
 
         if not self._busy:

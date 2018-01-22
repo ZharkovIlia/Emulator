@@ -37,9 +37,14 @@ class MainWindow(QWidget):
         right_part.addWidget(self.registers)
         right_part.addWidget(self.viewer)
 
-        layout = QHBoxLayout()
-        layout.addWidget(self.screen)
-        layout.addLayout(right_part)
+        #layout = QHBoxLayout()
+        #layout.addWidget(self.screen)
+        #layout.addLayout(right_part)
+
+        layout = QGridLayout()
+        layout.addWidget(self.screen, 0, 0)
+        layout.addLayout(right_part, 0, 1)
+        layout.setColumnStretch(1, 3)
 
         self.screen.start.clicked.connect(self.start)
         self.screen.step.clicked.connect(self.step)
@@ -51,7 +56,7 @@ class MainWindow(QWidget):
     def start(self):
         self.screen.cash.checkEnabled.setEnabled(False)
         self.screen.pipe.checkEnabled.setEnabled(False)
-        self.timer.start(50)
+        self.timer.start(100)
         self.screen.start.setEnabled(False)
         self.screen.step.setEnabled(False)
         self.screen.reset.setEnabled(False)
@@ -70,6 +75,8 @@ class MainWindow(QWidget):
         self.emulator.step()
         self.viewer.get_current()
         self.registers.update()
+        self.screen.pipe.get_stat()
+        self.screen.cash.get_stat()
 
     def pause(self):
         self.timer.stop()
@@ -81,12 +88,16 @@ class MainWindow(QWidget):
         self.viewer.get_current()
         self.registers.update()
         self.emulator.memory.video.show()
+        self.screen.pipe.get_stat()
+        self.screen.cash.get_stat()
 
     def stop(self):
         self.emulator.stopped = True
 
     def load(self):
-        self.emulator.memory.video.show()
+        #self.emulator.memory.video.show()
+        self.screen.pipe.get_stat()
+        self.screen.cash.get_stat()
 
     def reset(self):
         self.screen.cash.checkEnabled.setEnabled(True)
