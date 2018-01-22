@@ -181,18 +181,12 @@ class Screen(QWidget):
         stat.addWidget(self.pipe)
 
         layout = QGridLayout()
-        #layout.addWidget(self.screen, 1, 0, 2, 2)
         layout.addLayout(sl, 0, 0, 2, 2)
         layout.addLayout(buttons, 3, 0, 1, 2)
         layout.addWidget(self.cash, 4, 0)
         layout.addWidget(self.pipe, 4, 1)
         layout.addLayout(cl, 5, 1)
-        #layout.addLayout(stat, 5, 0, 1, 3)
 
-        #layout = QVBoxLayout()
-        #layout.addWidget(self.screen)
-        #layout.addLayout(buttons)
-        #layout.addLayout(stat)
         layout.setAlignment(Qt.AlignTop)
 
         self.setLayout(layout)

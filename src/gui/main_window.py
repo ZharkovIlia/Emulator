@@ -27,6 +27,7 @@ class MainWindow(QWidget):
         self.initUI()
 
     def initUI(self):
+        self.setWindowTitle('pdp11 emulator viewer')
         self.viewer = CodeViewer(self.emulator)
         self.registers = RegisterWindow(self.emulator)
         self.screen = Screen(self.emulator)
@@ -56,6 +57,7 @@ class MainWindow(QWidget):
     def start(self):
         self.screen.cash.checkEnabled.setEnabled(False)
         self.screen.pipe.checkEnabled.setEnabled(False)
+        self.screen.clearStat.setEnabled(False)
         self.timer.start(100)
         self.screen.start.setEnabled(False)
         self.screen.step.setEnabled(False)
@@ -82,12 +84,12 @@ class MainWindow(QWidget):
         self.timer.stop()
         self.screen.start.setEnabled(True)
         self.screen.step.setEnabled(True)
+        self.screen.clearStat.setEnabled(True)
         self.screen.reset.setEnabled(True)
         self.viewer.setEnabled(True)
         self.registers.setEnabled(True)
         self.viewer.get_current()
         self.registers.update()
-        self.emulator.memory.video.show()
         self.screen.pipe.get_stat()
         self.screen.cash.get_stat()
 
@@ -109,7 +111,6 @@ class MainWindow(QWidget):
 
         self.viewer.get_current()
         self.registers.update()
-        self.emulator.memory.video.show()
 
 
 app = QApplication(sys.argv)
