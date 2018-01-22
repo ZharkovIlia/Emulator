@@ -32,18 +32,13 @@ class Memory:
 
     def __init__(self):
         self._data = bytearray(0 for _ in range(0, Memory.SIZE))
-        self._video = VideoMemory(MemoryPart.VRAM.start)
         self._start_io = Memory.SIZE - 4
 
-        self._video_register_mode_start = VideoMemoryRegisterModeStart(self._start_io)
-        self._video_register_mode_start.set_word(value=bitarray("00" + "{:014b}".format(MemoryPart.VRAM.start // 4),
-                                                                endian='big'))
-        self._video.set_VRAM_start(MemoryPart.VRAM.start)
-        self._video.set_mode(VideoMode.MODE_O.mode)
-
-        self._video_register_offset = VideoMemoryRegisterOffset(self._start_io + 2)
-        self._video_register_offset.set(size="word", signed=False, value=0)
-        self._video.set_offset(0)
+        self._video_register_mode_start = VideoMemoryRegisterModeStart(
+            self._start_io, MemoryPart.VRAM.start, VideoMode.MODE_O.mode
+        )
+        self._video_register_offset = VideoMemoryRegisterOffset(self._start_io + 2, offset=0)
+        self._video = VideoMemory(self._video_register_mode_start, self._video_register_offset)
         self._check_configuration()
 
     def load(self, address: int, size: str) -> bitarray:
@@ -141,14 +136,13 @@ class Memory:
 
         if (address // 2) * 2 == self._video_register_mode_start.address:
             self._video_register_mode_start.store(address=address, size=size, value=value)
-            self._video.set_mode(self._video_register_mode_start.mode)
-            self._video.set_VRAM_start(self._video_register_mode_start.VRAM_start)
+            self._video.set_mode(self._video_register_mode_start)
             self._check_configuration()
             return True
 
         if (address // 2) * 2 == self._video_register_offset.address:
             self._video_register_offset.store(address=address, size=size, value=value)
-            self._video.set_offset(self._video_register_offset.offset)
+            self._video.set_offset(self._video_register_offset)
             return True
 
         return False

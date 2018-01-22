@@ -8,8 +8,10 @@ from src.backend.model.registers import MemoryRegister, Register
 
 
 class VideoMemoryRegisterModeStart(MemoryRegister):
-    def __init__(self, address: int):
+    def __init__(self, address: int, VRAM_start: int, mode: int):
         super(VideoMemoryRegisterModeStart, self).__init__(address)
+        self._data = bitarray("{:02b}".format(mode) + "{:014b}".format(VRAM_start // 4), endian='big')
+        assert self._data.length() == 16
 
     @property
     def VRAM_start(self) -> int:
@@ -21,13 +23,21 @@ class VideoMemoryRegisterModeStart(MemoryRegister):
 
 
 class VideoMemoryRegisterOffset(MemoryRegister):
-    def __init__(self, address: int):
+    def __init__(self, address: int, offset: int):
         super(VideoMemoryRegisterOffset, self).__init__(address)
+        self._data = bitarray("{:016b}".format(offset), endian='big')
 
     @property
-    def offset(self):
-        return int(self._data.to01(), 2)
+    def offset(self) -> int:
+        return int(self._data[1:16].to01(), 2)
 
+    @property
+    def bit_clear(self) -> bool:
+        return self._data[0]
+
+    @bit_clear.setter
+    def bit_clear(self, value: bool):
+        self._data[0] = value
 
 class VideoMode(enum.Enum):
     MODE_O = (0, 256, 256, 1, {
@@ -44,7 +54,7 @@ class VideoMode(enum.Enum):
 
 
 class VideoMemory:
-    def __init__(self, VRAM_start, on_show=None):
+    def __init__(self, reg_mode: VideoMemoryRegisterModeStart, reg_offset: VideoMemoryRegisterOffset, on_show=None):
         self._on_show = on_show
         self._mode: VideoMode = None
         self._image: QImage = None
@@ -52,10 +62,16 @@ class VideoMemory:
         self._size: int = None
         self._VRAM_start: int = None
         self._white_index: int = None
-        self.set_VRAM_start(VRAM_start)
-        self.set_mode(0)
+        self.set_mode(reg_mode)
+        self.set_offset(reg_offset)
 
-    def set_mode(self, mode: int):
+    def set_mode(self, reg_mode: VideoMemoryRegisterModeStart):
+        VRAM_start = reg_mode.VRAM_start
+        if VRAM_start % 2 == 1:
+            raise VideoException(what="VRAM cannot start at odd address")
+        self._VRAM_start = VRAM_start
+        mode = reg_mode.mode
+
         if mode not in (md.mode for md in list(VideoMode)):
             raise VideoWrongMode()
 
@@ -82,12 +98,14 @@ class VideoMemory:
         assert 8 % self._mode.depth == 0, "Wrong configuration"
         self._size = self._mode.width * self._mode.height * self._mode.depth // 8
 
-    def set_VRAM_start(self, VRAM_start):
-        if VRAM_start % 2 == 1:
-            raise VideoException(what="VRAM cannot start at odd address")
-        self._VRAM_start = VRAM_start
+    def set_offset(self, reg_offset: VideoMemoryRegisterOffset):
+        offset = reg_offset.offset
+        if reg_offset.bit_clear:
+            self._image.fill(self._white_index)
+            reg_offset.bit_clear = False
+            self._offset = offset
+            return
 
-    def set_offset(self, offset):
         if self._offset == offset:
             return
 
