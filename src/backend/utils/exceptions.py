@@ -19,6 +19,11 @@ class EmulatorWrongAddress(EmulatorException):
         super(EmulatorWrongAddress, self).__init__(what="Address {} is wrong".format(address))
 
 
+class EmulatorWrongConfiguration(EmulatorException):
+    def __init__(self, what):
+        super(EmulatorWrongConfiguration, self).__init__(what="Wrong configuration: {}".format(what))
+
+
 class MemoryException(EmulatorException):
     def __init__(self, what: str):
         super(MemoryException, self).__init__(what)

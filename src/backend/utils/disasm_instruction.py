@@ -11,7 +11,7 @@ class DisasmInstruction:
     def __init__(self):
         self._state = DisasmState.NOT_AN_INSTRUCTION
         self._str = "Not an instruction"
-        self._num_next: int = None
+        self._num_next: int = 0
 
     @property
     def state(self):
@@ -21,7 +21,7 @@ class DisasmInstruction:
     def num_next(self):
         return self._num_next
 
-    def set_state(self, state: DisasmState, representation=None, num_next: int=None):
+    def set_state(self, state: DisasmState, representation=None, num_next: int=0):
         self._state = state
         if state is DisasmState.NOT_AN_INSTRUCTION:
             if representation is not None:

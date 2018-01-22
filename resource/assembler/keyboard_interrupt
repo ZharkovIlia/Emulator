@@ -1,0 +1,14 @@
+#integer constants: keyboard_register_address, monitor_structure_start, draw_glyph_start
+
+MOV #{monitor_structure_start:o}, R2
+MOV -(R2), R0
+MOV -(R2), R1
+MOVB @#{keyboard_register_address:o}, R2
+
+JSR R5, @#{draw_glyph_start:o}
+
+MOV #{monitor_structure_start:o}, R2
+INC -(R2)
+
+MOV #0100000, @#{keyboard_register_address:o}
+RTI
