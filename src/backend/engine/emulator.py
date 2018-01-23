@@ -189,8 +189,11 @@ class Emulator:
 
         draw_glyph_end = draw_glyph_start + len(draw_glyph) * 2
 
-        print_help_message = Routines.print_help_message(draw_glyph_start=draw_glyph_start,
-                                                         monitor_structure_start=self._sp.lower_bound)
+        print_help_message = Routines.\
+            print_help_message(draw_glyph_start=draw_glyph_start,
+                               monitor_structure_start=self._sp.lower_bound,
+                               video_register_offset_address=self._memory.video_register_offset_address)
+
         print_help_message_start = draw_glyph_end
         print_help_message_end = print_help_message_start + len(print_help_message) * 2
 

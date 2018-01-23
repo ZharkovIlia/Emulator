@@ -94,12 +94,14 @@ class Routines:
         return Assembler.assemble(content.splitlines())
 
     @staticmethod
-    def print_help_message(draw_glyph_start: int, monitor_structure_start: int) -> list:
+    def print_help_message(draw_glyph_start: int, monitor_structure_start: int,
+                           video_register_offset_address: int) -> list:
         path = pathlib.Path(src.backend.utils.__path__[0])
         path = path.parent.parent.parent / "resource" / "assembler" / "print_help_message"
 
         with open(path) as f:
             content = f.read().format(draw_glyph_start=draw_glyph_start,
-                                      monitor_structure_start=monitor_structure_start)
+                                      monitor_structure_start=monitor_structure_start,
+                                      video_register_offset_address=video_register_offset_address)
 
         return Assembler.assemble(content.splitlines())
