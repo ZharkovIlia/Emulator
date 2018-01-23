@@ -35,7 +35,7 @@ CMP -(R5), #{num_glyphs_all:o}
 BNE 02
 SUB #{num_glyphs_width:o}, (R5)
 
-# CMP R0, #{num_glyphs_width:o} can draw now
+# CMP R0, #{num_glyphs_width:o} draw glyph
 MOV #{monitor_structure_start:o}, R5
 MOV -(R5), R0
 MOV -(R5), R1
@@ -45,9 +45,32 @@ INC -(R5)
 SUB #02, R5
 INC -(R5)
 INC -(R5)
-#BR ??????????????? # end
+BR 030
 
 # CMP R2, #032 not an alpha
+CMP R2, #033
+BNE 025
+CMP #0, -(R5)
+BEQ 022
+DEC (R5)
+DEC -(R5)
+CMP #0, R0
+BNE 03
+DEC R1
+MOV #{num_glyphs_width:o}, R0
+
+# CMP #0, R0 draw space
+DEC R0
+MOV #{monitor_structure_start:o}, R5
+MOV R0, -(R5)
+MOV R1, -(R5)
+MOV #032, R2
+JSR R5, @#{draw_glyph_start:o}
+BR 0
+
+# CMP R2, #033 not a backspace
+
+#end
 
 MOV #0100000, @#{keyboard_register_address:o}
 RTI

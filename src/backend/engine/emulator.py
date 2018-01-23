@@ -205,8 +205,6 @@ class Emulator:
             raise EmulatorWrongConfiguration(what="init is too long")
 
         assert self._memory.video.mode.width % self._glyphs["width"] == 0
-        print(self._glyphs["max_height"])
-        print(self._glyphs["min_height"])
 
         keyboard_interrupt = Routines.\
             keyboard_interrupt(keyboard_register_address=self._memory.keyboard_register_address,
