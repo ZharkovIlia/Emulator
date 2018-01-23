@@ -71,7 +71,6 @@ class MainWindow(QWidget):
         self.emuThread = EmulatorThread(self.emulator)
         self.emuThread.finished.connect(self.pause)
         self.emuThread.start()
-        #self.emulator.run()
 
     def step(self):
         self.screen.cash.checkEnabled.setEnabled(False)

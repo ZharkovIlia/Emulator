@@ -220,6 +220,7 @@ class CashMemory:
         if self._address == address and self._rw == 'r':
             self._rw = None
             self._address = -1
+            self.misses += 1
             return True, self._memory.load(address, size)
 
         if self._address == -1:
@@ -237,6 +238,7 @@ class CashMemory:
         if self._address == address and self._rw == 'w':
             self._rw = None
             self._address = -1
+            self.misses += 1
             self._memory.store(address, size, value)
             return True
 
