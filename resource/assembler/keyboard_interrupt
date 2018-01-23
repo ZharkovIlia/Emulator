@@ -3,6 +3,7 @@
 
 #integer constants: keyboard_register_address, monitor_structure_start, draw_glyph_start
 #   init_start, glyph_height, num_glyphs_width, num_glyphs_height, num_glyphs_all, video_register_offset_address
+#   print_help_message_start
 
 
 MOV #{monitor_structure_start:o}, R5
@@ -35,7 +36,7 @@ CMP -(R5), #{num_glyphs_all:o}
 BNE 02
 SUB #{num_glyphs_width:o}, (R5)
 
-# CMP R0, #{num_glyphs_width:o} can draw now
+# CMP R0, #{num_glyphs_width:o} draw glyph
 MOV #{monitor_structure_start:o}, R5
 MOV -(R5), R0
 MOV -(R5), R1
@@ -45,9 +46,58 @@ INC -(R5)
 SUB #02, R5
 INC -(R5)
 INC -(R5)
-#BR ??????????????? # end
+BR 076
 
 # CMP R2, #032 not an alpha
+CMP R2, #033
+BNE 025
+CMP #0, -(R5)
+BEQ 070
+DEC (R5)
+DEC -(R5)
+CMP #0, R0
+BNE 03
+DEC R1
+MOV #{num_glyphs_width:o}, R0
 
+# CMP #0, R0 draw space
+DEC R0
+MOV #{monitor_structure_start:o}, R5
+MOV R0, -(R5)
+MOV R1, -(R5)
+MOV #032, R2
+JSR R5, @#{draw_glyph_start:o}
+BR 046
+
+# CMP R2, #033 not a backspace - enter
+SUB #02, R5
+CMP #01, -(R5)
+BNE 013
+MOV -(R5), R2
+CMP #021, R2
+BNE 02
+JMP @#{init_start:o}
+
+# CMP #021, R2 not 'r'
+CMP #07, R2
+BNE 02
+JSR R5, @#{print_help_message_start:o}
+
+# CMP #01, -(R5) # regular enter
+MOV #{monitor_structure_start:o}, R5
+MOV #0, -(R5)
+INC -(R5)
+MOV R5, R1
+MOV #0, -(R5)
+MOV #0, -(R5)
+CMP #{num_glyphs_height:o}, (R1)
+BNE 011
+MOV @#{video_register_offset_address:o}, R4
+ADD #{glyph_height:o}, R4
+BIC #0100000, R4
+MOV R4, @#{video_register_offset_address:o}
+DEC (R1)
+
+#end
 MOV #0100000, @#{keyboard_register_address:o}
 RTI

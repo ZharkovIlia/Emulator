@@ -87,8 +87,6 @@ class Emulator:
             if self.current_pc in self._breakpoints or self.stopped:
                 break
 
-        self._memory.video.show()
-
     def toggle_breakpoint(self, address: int):
         if address % 2 == 1 or address < 0 or address >= Memory.SIZE:
             raise EmulatorOddBreakpoint()
@@ -190,7 +188,13 @@ class Emulator:
                                                 monitor_depth=self._memory.video.mode.depth)
 
         draw_glyph_end = draw_glyph_start + len(draw_glyph) * 2
-        keyboard_interrupt_start = draw_glyph_end
+
+        print_help_message = Routines.print_help_message(draw_glyph_start=draw_glyph_start,
+                                                         monitor_structure_start=self._sp.lower_bound)
+        print_help_message_start = draw_glyph_end
+        print_help_message_end = print_help_message_start + len(print_help_message) * 2
+
+        keyboard_interrupt_start = print_help_message_end
 
         init = Routines.init(VRAM_start=MemoryPart.VRAM.start,
                              video_register_mode_start_address=self._memory.video_register_mode_start_address,
@@ -205,8 +209,6 @@ class Emulator:
             raise EmulatorWrongConfiguration(what="init is too long")
 
         assert self._memory.video.mode.width % self._glyphs["width"] == 0
-        print(self._glyphs["max_height"])
-        print(self._glyphs["min_height"])
 
         keyboard_interrupt = Routines.\
             keyboard_interrupt(keyboard_register_address=self._memory.keyboard_register_address,
@@ -217,7 +219,8 @@ class Emulator:
                                num_glyphs_height=(self._memory.video.mode.height -
                                                  (self._glyphs["max_height"] - self._glyphs["min_height"])) //
                                                  self._glyphs["min_height"],
-                               video_register_offset_address=self._memory.video_register_offset_address)
+                               video_register_offset_address=self._memory.video_register_offset_address,
+                               print_help_message_start=print_help_message_start)
 
         keyboard_interrupt_end = keyboard_interrupt_start + len(keyboard_interrupt) * 2
 
@@ -238,6 +241,9 @@ class Emulator:
 
         for i, v in enumerate(draw_glyph):
             self._memory.store(address=draw_glyph_start + i*2, size="word", value=v)
+
+        for i, v in enumerate(print_help_message):
+            self._memory.store(address=print_help_message_start + i * 2, size="word", value=v)
 
         for i, v in enumerate(keyboard_interrupt):
             self._memory.store(address=keyboard_interrupt_start + i*2, size="word", value=v)

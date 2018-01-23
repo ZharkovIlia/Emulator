@@ -12,8 +12,8 @@ class Keyboard:
     INTERRUPT_VECTOR = {"PC": 0, "PS": 2}
     ALPHABET = "abcdefghijklmnopqrstuvwxyz"
     SPACE = len(ALPHABET)
-    ENTER = SPACE + 1
-    BACKSPACE = ENTER + 1
+    BACKSPACE = SPACE + 1
+    ENTER = BACKSPACE + 1
 
     def __init__(self, register: KeyboardRegister, pipe: Pipe, memory: Memory, program_status: ProgramStatus,
                  program_counter: ProgramCounter, stack_pointer: StackPointer):
