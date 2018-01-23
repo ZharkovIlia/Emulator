@@ -11,7 +11,7 @@ MOV -(R5), R0
 MOV -(R5), R1
 MOVB @#{keyboard_register_address:o}, R2
 
-CMP R2, #032
+CMP R2, #033
 BHI 056
 SUB #02, R5
 MOV -(R5), R3
@@ -48,8 +48,8 @@ INC -(R5)
 INC -(R5)
 BR 076
 
-# CMP R2, #032 not an alpha
-CMP R2, #033
+# CMP R2, #033 not an alpha or hyphen or space
+CMP R2, #034
 BNE 025
 CMP #0, -(R5)
 BEQ 070
@@ -69,7 +69,7 @@ MOV #032, R2
 JSR R5, @#{draw_glyph_start:o}
 BR 046
 
-# CMP R2, #033 not a backspace - enter
+# CMP R2, #034 enter
 SUB #02, R5
 CMP #01, -(R5)
 BNE 013

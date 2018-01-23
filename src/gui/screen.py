@@ -120,7 +120,6 @@ class ScreenField(QLabel):
 
     def keyPressEvent(self, e):
         if e.key() == Qt.Key_Enter or e.key() == Qt.Key_Return:
-            print("Enter")
             self.emulator.keyboard.add_enter()
         elif e.key() == Qt.Key_Backspace:
             self.emulator.keyboard.add_backspace()

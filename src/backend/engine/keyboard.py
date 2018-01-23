@@ -12,7 +12,8 @@ class Keyboard:
     INTERRUPT_VECTOR = {"PC": 0, "PS": 2}
     ALPHABET = "abcdefghijklmnopqrstuvwxyz"
     SPACE = len(ALPHABET)
-    BACKSPACE = SPACE + 1
+    HYPHEN = SPACE + 1
+    BACKSPACE = HYPHEN + 1
     ENTER = BACKSPACE + 1
 
     def __init__(self, register: KeyboardRegister, pipe: Pipe, memory: Memory, program_status: ProgramStatus,
@@ -76,4 +77,9 @@ class Keyboard:
     def add_space(self):
         self._lock.lock()
         self._buffer.append(self.SPACE)
+        self._lock.unlock()
+
+    def add_hyphen(self):
+        self._lock.lock()
+        self._buffer.append(self.HYPHEN)
         self._lock.unlock()
