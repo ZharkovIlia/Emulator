@@ -117,6 +117,7 @@ class ScreenField(QLabel):
         self.setFocusPolicy(Qt.ClickFocus)
         self.setFixedSize(self.emulator.memory.video.mode.height,
                           self.emulator.memory.video.mode.width)
+        #self.show_hello()
 
     def keyPressEvent(self, e):
         if e.key() == Qt.Key_Enter or e.key() == Qt.Key_Return:
@@ -127,6 +128,16 @@ class ScreenField(QLabel):
             self.emulator.keyboard.add_space()
         elif e.text().isalpha() and e.text().islower():
             self.emulator.keyboard.add_alpha(e.text())
+
+    def show_hello(self):
+        for _ in range(5):
+            self.emulator.keyboard.add_enter()
+        for _ in range(5):
+            self.emulator.keyboard.add_space()
+        for c in "hello":
+            self.emulator.keyboard.add_alpha(c)
+        for _ in range(11):
+            self.emulator.keyboard.add_enter()
 
     def focusInEvent(self, QFocusEvent):
         self.setFrameStyle(1)

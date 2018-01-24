@@ -1,14 +1,10 @@
+from PyQt5.QtCore import *
+from PyQt5.QtWidgets import *
+
 from src.backend.engine.emulator import Emulator
 from src.gui.code_viewer import CodeViewer
-from src.gui.screen import Screen
 from src.gui.registers import RegisterWindow
-
-import sys
-
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-#from PyQt5.QtCore import QThread
-#from PyQt5.QtCore import QTimer
+from src.gui.screen import Screen
 
 
 class EmulatorThread(QThread):
@@ -113,9 +109,3 @@ class MainWindow(QWidget):
 
         self.viewer.get_current()
         self.registers.update()
-
-app = QApplication(sys.argv)
-window = MainWindow()
-
-sys.exit(app.exec_())
-
